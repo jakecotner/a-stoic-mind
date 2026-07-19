@@ -1,0 +1,21 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: stoa-db
+    environment:
+      POSTGRES_USER: stoa
+      POSTGRES_PASSWORD: stoa
+      POSTGRES_DB: stoa
+    # 5433 on the host because a local PostgreSQL 17 install may own 5432
+    ports:
+      - "5433:5432"
+    volumes:
+      - stoa-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stoa"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  stoa-pgdata:
