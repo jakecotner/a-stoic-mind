@@ -23,4 +23,5 @@ ENV STATIC_DIR=/app/static
 EXPOSE 8000
 
 # Run migrations, then start. PORT is injected by most PaaS hosts.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# python -m keeps the workdir on sys.path so alembic/env.py can import `app`
+CMD ["sh", "-c", "python -m alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

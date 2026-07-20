@@ -2,7 +2,9 @@
 
 astoicmind.com — describe a problem you're facing or a way you're trying to
 grow, and reflect on it with guidance grounded in the actual writings of
-Epictetus, Marcus Aurelius, and Seneca, cited passage by passage.
+Epictetus, Marcus Aurelius, and Seneca, cited passage by passage. The
+conversation space is "the Stoa", after the Athenian porch where Stoicism
+was first taught.
 
 | Directory | What it is |
 |---|---|

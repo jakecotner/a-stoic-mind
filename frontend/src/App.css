@@ -1,10 +1,34 @@
 :root {
+  color-scheme: light;
   --bg: #f6f2ea;
   --ink: #26241f;
   --ink-soft: #5c574c;
   --gold: #a4762f;
   --card: #fdfbf6;
   --line: #e2dbcc;
+  --msg-user-bg: #ece5d6;
+  --error: #8c3a2b;
+  --shadow: rgba(38, 36, 31, 0.12);
+  --shadow-strong: rgba(38, 36, 31, 0.25);
+  --overlay: rgba(38, 36, 31, 0.35);
+  --appbar-h: 5rem;
+}
+
+/* Dark: same earthy register — lamplit study rather than noon courtyard.
+   Warm umber ground, parchment ink, gold brightened just enough to read. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #211e18;
+  --ink: #e7dfcf;
+  --ink-soft: #a69c86;
+  --gold: #c79c55;
+  --card: #2a2620;
+  --line: #3c362b;
+  --msg-user-bg: #383226;
+  --error: #d98a72;
+  --shadow: rgba(0, 0, 0, 0.35);
+  --shadow-strong: rgba(0, 0, 0, 0.55);
+  --overlay: rgba(10, 9, 7, 0.55);
 }
 
 * {
@@ -22,21 +46,26 @@ body {
 }
 
 .page {
-  max-width: 720px;
-  margin: 0 auto;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 1.25rem;
 }
 
-.masthead {
-  text-align: center;
-  padding: 2.25rem 0 0.5rem;
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  height: var(--appbar-h);
+  padding: 0 1.5rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
 
-.masthead h1 {
-  font-size: 1.9rem;
+.appbar-title h1 {
+  font-size: 1.25rem;
   font-weight: normal;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -46,13 +75,110 @@ body {
 .tagline {
   color: var(--ink-soft);
   font-style: italic;
-  margin: 0.35rem 0 0;
-  font-size: 0.95rem;
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
 }
 
+/* --- Hamburger + dropdown menu --- */
+
+.appbar-menu {
+  position: relative;
+  display: flex;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0 0.45rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.hamburger:hover {
+  border-color: var(--line);
+  background: var(--card);
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--ink);
+  border-radius: 1px;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 20;
+  min-width: 11rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px var(--shadow);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--bg);
+}
+
+.menu-active {
+  color: var(--gold);
+}
+
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 0.35rem 0.3rem;
+}
+
+.menu-user {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-style: italic;
+  padding: 0.35rem 0.7rem 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chat keeps a readable column, centered in the full-width canvas. */
 .chat {
   flex: 1;
-  padding: 1.5rem 0 2rem;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 2rem;
+}
+
+/* Wider canvas for Stoic Texts / Journal; inner prose constrains itself. */
+.view {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 2.5rem;
 }
 
 .chat-empty {
@@ -75,6 +201,112 @@ body {
   font-size: 1.05rem;
 }
 
+.daily-caption {
+  color: var(--gold);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+
+.daily-links {
+  margin-top: 0.7rem;
+  text-align: right;
+  font-size: 0.82rem;
+}
+
+/* Start state flows from the top (passage, then reflection). */
+.chat-start {
+  padding-top: 2rem;
+}
+
+.intro-hint {
+  text-align: center;
+  margin-top: 1.2rem;
+}
+
+.passage-actions {
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+/* The Stoa's prose breakdown of a passage (daily prompt & reading pane). */
+.daily-breakdown {
+  margin: 0 0 1.6rem;
+  padding-left: 1rem;
+  border-left: 3px solid var(--gold);
+}
+
+.daily-breakdown p {
+  margin: 0.6rem 0;
+}
+
+.passage-breakdown {
+  flex-basis: 100%;
+  font-size: 0.95rem;
+  margin: 0.3rem 0 0.4rem;
+}
+
+/* --- Reflection threads under journal entries --- */
+
+.entry-thread,
+.entry-thread-start {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.entry-thread-start .auth-link,
+.entry-thread-toggle {
+  font-size: 0.85rem;
+}
+
+.entry-thread .msg {
+  margin: 0.9rem 0;
+}
+
+.thread-composer {
+  display: flex;
+  gap: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.thread-composer textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.thread-composer button {
+  align-self: flex-end;
+  border: none;
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.thread-composer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .daily figcaption {
   margin-top: 0.75rem;
   text-align: right;
@@ -94,7 +326,7 @@ body {
 }
 
 .msg-user {
-  background: #ece5d6;
+  background: var(--msg-user-bg);
   border-radius: 12px 12px 2px 12px;
   padding: 0.7rem 1rem;
   margin-left: 20%;
@@ -110,9 +342,9 @@ body {
 }
 
 .msg-error {
-  color: #8c3a2b;
+  color: var(--error);
   font-size: 0.9rem;
-  border-left: 3px solid #8c3a2b;
+  border-left: 3px solid var(--error);
   padding-left: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -166,8 +398,11 @@ body {
 .composer-wrap {
   position: sticky;
   bottom: 0;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
   background: linear-gradient(transparent, var(--bg) 30%);
-  padding: 1rem 0 0.75rem;
+  padding: 1rem 1.5rem 0.75rem;
 }
 
 .composer {
@@ -211,4 +446,726 @@ body {
   color: var(--ink-soft);
   font-size: 0.78rem;
   margin: 0.6rem 0 0;
+}
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 11vh 1.25rem 2rem;
+}
+
+.auth-modal {
+  position: relative;
+  width: min(24rem, 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px var(--shadow-strong);
+  padding: 1.7rem 1.75rem 1.4rem;
+}
+
+.auth-modal h2 {
+  font-weight: normal;
+  font-size: 1.3rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+  margin: 0;
+}
+
+.auth-sub {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-style: italic;
+  text-align: center;
+  margin: 0.4rem 0 1.2rem;
+}
+
+.auth-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.7rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.auth-close:hover {
+  color: var(--ink);
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--gold);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-hint {
+  margin: 0;
+  font-style: italic;
+  font-size: 0.78rem;
+}
+
+.auth-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.auth-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.auth-fields input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.4rem 0.7rem;
+  outline: none;
+  width: 100%;
+}
+
+.auth-fields input:focus {
+  border-color: var(--gold);
+}
+
+.auth-passrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.auth-passrow input {
+  flex: 1;
+}
+
+.auth-passrow .auth-link {
+  font-size: 0.8rem;
+}
+
+.auth-note {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-top: -0.5rem;
+}
+
+.auth-primary {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border-radius: 7px;
+  cursor: pointer;
+  margin-top: 0.3rem;
+}
+
+.auth-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.auth-switch {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  margin: 1.1rem 0 0;
+}
+
+.auth-error {
+  text-align: center;
+  color: var(--error);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.intro-hint {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.stoa-intro h2 {
+  text-align: center;
+  font-weight: normal;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 0.6rem;
+}
+
+/* --- Reading --- */
+
+.view-title {
+  text-align: center;
+  font-weight: normal;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 0.6rem;
+}
+
+.work-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+}
+
+/* The reading pane itself stays a readable measure inside the wide view. */
+.reading-pane {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.work-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.work-card:hover {
+  border-color: var(--gold);
+}
+
+.work-title {
+  font-size: 1.05rem;
+}
+
+.work-author {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.92rem;
+}
+
+.work-meta {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.reading-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.reading-work .work-meta {
+  font-style: italic;
+}
+
+.passage-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.5rem 1.75rem;
+}
+
+.passage-text {
+  margin: 0.6rem 0 0;
+  font-size: 1.05rem;
+  white-space: pre-wrap;
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.1rem;
+}
+
+.pager button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.pager button:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+
+.pager button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pager-pos {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.pager-hint {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-style: italic;
+  margin-top: 0.6rem;
+}
+
+/* --- Notes in the reading pane --- */
+
+.passage-notes {
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.note-hint {
+  margin: 1.1rem 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.margin-note {
+  border-left: 3px solid var(--gold);
+  padding: 0.15rem 0 0.15rem 0.85rem;
+  margin: 0.6rem 0;
+  font-size: 0.92rem;
+}
+
+.margin-note p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.note-add {
+  font-size: 0.85rem;
+}
+
+.note-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.note-compose textarea {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.5rem 0.7rem;
+  resize: vertical;
+  outline: none;
+}
+
+.note-compose textarea:focus {
+  border-color: var(--gold);
+}
+
+.note-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.note-compose-actions button:not(.auth-link) {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.note-compose-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- Journal --- */
+
+.journal-compose {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.6rem;
+}
+
+.journal-compose textarea {
+  background: var(--card);
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.journal-entry {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0.9rem 0;
+}
+
+.journal-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8rem;
+  font-size: 0.82rem;
+}
+
+.journal-date {
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.journal-passage-link {
+  font-style: italic;
+}
+
+.journal-content {
+  margin: 0.5rem 0 0.4rem;
+  white-space: pre-wrap;
+}
+
+.journal-entry-actions {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+}
+
+.journal-entry-actions .auth-link {
+  font-size: 0.8rem;
+}
+
+.journal {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* --- Small screens --- */
+
+/* --- Layout: shared left sidebar + main column --- */
+
+.layout {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+}
+
+.main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar {
+  width: 270px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  position: sticky;
+  top: var(--appbar-h);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--appbar-h));
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.18s ease;
+}
+
+/* Collapsed: a slim rail holding just the expand button. */
+.sidebar-collapsed {
+  width: 3rem;
+}
+
+.sidebar-rail {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.55rem;
+}
+
+/* Fixed width so contents don't reflow while the aside animates shut. */
+.sidebar-inner {
+  width: 270px;
+  padding: 0.55rem 0.8rem 1.5rem;
+}
+
+.side-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.side-toggle:hover {
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.45rem 0.35rem;
+}
+
+.side-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.side-plus {
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.14rem 0.5rem 0.24rem;
+}
+
+.side-title {
+  margin: 0;
+  font-weight: normal;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-action {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.side-action:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.side-hint {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.82rem;
+  margin: 0.3rem 0.35rem;
+}
+
+.side-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.side-item:hover {
+  background: var(--card);
+}
+
+.side-active {
+  background: var(--card);
+  color: var(--gold);
+}
+
+.side-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-item-meta {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.side-group-label {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0.8rem 0.55rem 0.25rem;
+}
+
+/* Journal entries scroll under the sticky appbar without hiding behind it. */
+.journal-entry {
+  scroll-margin-top: calc(var(--appbar-h) + 0.8rem);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  html,
+  body {
+    font-size: 16px;
+  }
+
+  :root {
+    --appbar-h: 3.4rem;
+  }
+
+  .appbar {
+    padding: 0 0.9rem;
+  }
+
+  .tagline {
+    display: none;
+  }
+
+  .chat,
+  .view {
+    padding: 1rem 0.9rem 1.5rem;
+  }
+
+  .composer-wrap {
+    padding: 0.8rem 0.9rem 0.6rem;
+  }
+
+  .msg-user {
+    margin-left: 10%;
+  }
+
+  .passage-card {
+    padding: 1.1rem 1.15rem;
+  }
+
+  .pager-hint {
+    display: none; /* no arrow keys on touch */
+  }
+}
+
+/* --- Audio narration & dictation ---------------------------------------- */
+
+/* Listen/stop toggle (rides on .auth-link for color; drop the underline —
+   it reads badly under the play glyph). */
+.play-btn {
+  text-decoration: none;
+}
+
+.play-btn:disabled {
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.daily-links .play-btn {
+  margin-right: 1.1rem;
+}
+
+/* Mic toggle. The doubled selectors out-rank the filled-button rules that
+   .note-compose-actions and .thread-composer apply to bare <button>s. */
+button.mic-btn,
+.note-compose-actions button.mic-btn,
+.thread-composer button.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-soft);
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+button.mic-btn:hover,
+.note-compose-actions button.mic-btn:hover,
+.thread-composer button.mic-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+button.mic-btn.mic-live,
+.note-compose-actions button.mic-btn.mic-live,
+.thread-composer button.mic-btn.mic-live {
+  color: var(--gold);
+  border-color: var(--gold);
+  animation: mic-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+/* Words heard but not yet final, ghosted under the composer textarea. */
+.dictation-interim {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--ink-soft);
 }

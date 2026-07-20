@@ -8,6 +8,18 @@
       content="A Stoic Mind — reflect on life's problems with guidance grounded in the actual writings of Epictetus, Marcus Aurelius, and Seneca."
     />
     <title>A Stoic Mind</title>
+    <script>
+      // Set the theme before first paint so dark mode doesn't flash light.
+      (function () {
+        var t = localStorage.getItem("stoa:theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

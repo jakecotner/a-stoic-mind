@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,11 +9,30 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://stoa:stoa@localhost:5433/stoa"
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _force_psycopg_driver(cls, v: object) -> object:
+        """Hosted Postgres (Railway, Heroku, ...) hands out postgres:// or
+        postgresql:// URLs; SQLAlchemy would resolve those to psycopg2, which
+        isn't installed. Rewrite to the psycopg (v3) driver."""
+        if isinstance(v, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if v.startswith(prefix):
+                    return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
     # Read from .env and passed to the SDK explicitly (pydantic-settings does
     # not export .env values to os.environ, so the SDK can't see them itself).
     # Leave unset to fall back to the ANTHROPIC_API_KEY env var / `ant` profile.
     anthropic_api_key: str | None = None
     voyage_api_key: str | None = None
+
+    # Passage narration (OpenAI TTS; Anthropic has no TTS API). Leave the key
+    # unset to disable audio — the endpoint then returns 503 and the frontend
+    # hides nothing (the play button simply reports audio as unavailable).
+    openai_api_key: str | None = None
+    tts_model: str = "gpt-4o-mini-tts"
+    tts_voice: str = "onyx"
 
     anthropic_model: str = "claude-opus-4-8"
     chat_effort: str = "medium"
@@ -20,6 +40,11 @@ class Settings(BaseSettings):
 
     retrieval_top_k: int = 6
     history_max_messages: int = 20
+
+    # Auth (fastapi-users). Override auth_secret in .env for anything non-local.
+    auth_secret: str = "dev-only-change-me"
+    auth_cookie_secure: bool = False  # set True when serving over HTTPS
+    auth_token_lifetime_seconds: int = 60 * 60 * 24 * 30  # 30 days
 
     cors_origins: list[str] = ["http://localhost:5173"]
 

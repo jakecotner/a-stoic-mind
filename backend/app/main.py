@@ -13,11 +13,22 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import llm
+from app.auth import (
+    auth_backend,
+    bearer_backend,
+    current_active_user,
+    current_user_optional,
+    fastapi_users,
+)
 from app.config import get_settings
 from app.db import SessionLocal, get_db
-from app.models import Conversation, Message, Passage
+from app.models import Conversation, Message, Note, Passage, User
+from app.conversations import router as conversations_router
+from app.journal import router as journal_router
+from app.reading import router as reading_router
+from app.reflection import router as reflection_router, seed_message_content
 from app.retrieval import search_passages
-from app.schemas import ChatRequest, ConversationOut, PassageOut
+from app.schemas import ChatRequest, ConversationOut, PassageOut, UserCreate, UserRead
 
 logger = logging.getLogger("stoa")
 
@@ -26,9 +37,47 @@ app = FastAPI(title="A Stoic Mind API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins,
+    allow_credentials=True,  # auth cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth: JWT in an httponly cookie for the web app, bearer token for the
+# mobile app (see app/auth.py).
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"]
+)
+app.include_router(
+    fastapi_users.get_auth_router(bearer_backend),
+    prefix="/api/auth/bearer",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/api/auth",
+    tags=["auth"],
+)
+app.include_router(reading_router)
+app.include_router(journal_router)
+app.include_router(conversations_router)
+app.include_router(reflection_router)
+# Hook points for when email sending is set up (templates in fastapi-users docs):
+# app.include_router(fastapi_users.get_verify_router(UserRead), prefix="/api/auth", tags=["auth"])
+# app.include_router(fastapi_users.get_reset_password_router(), prefix="/api/auth", tags=["auth"])
+
+
+@app.get("/api/auth/me", response_model=UserRead)
+def me(user: User = Depends(current_active_user)):
+    return user
+
+
+def _conversation_visible(conversation: Conversation, user: User | None) -> bool:
+    """Anonymous conversations (user_id NULL) are visible to whoever holds the
+    id; owned conversations only to their owner. Non-owners get a 404 so ids
+    aren't confirmed to exist."""
+    if conversation.user_id is None:
+        return True
+    return user is not None and conversation.user_id == user.id
 
 
 @app.get("/api/health")
@@ -37,18 +86,51 @@ def health() -> dict:
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest, db: Session = Depends(get_db)) -> StreamingResponse:
+def chat(
+    req: ChatRequest,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(current_user_optional),
+) -> StreamingResponse:
     settings = get_settings()
 
     if req.conversation_id:
         conversation = db.get(Conversation, req.conversation_id)
-        if conversation is None:
+        if conversation is None or not _conversation_visible(conversation, user):
             raise HTTPException(404, "Conversation not found")
     else:
-        conversation = Conversation(title=req.message[:80])
+        # A thread under a journal entry: only the entry's owner may start it,
+        # and an entry has at most one thread.
+        note = None
+        if req.note_id is not None:
+            note = db.get(Note, req.note_id)
+            if note is None or user is None or note.user_id != user.id:
+                raise HTTPException(404, "Note not found")
+            existing = db.scalar(
+                select(Conversation).where(Conversation.note_id == note.id)
+            )
+            if existing is not None:
+                raise HTTPException(409, "Entry already has a reflection thread")
+        conversation = Conversation(
+            title=req.message[:80],
+            user_id=user.id if user else None,
+            note_id=note.id if note else None,
+        )
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
+        # Seed the fresh conversation with the passage + reflection the user
+        # was shown, so it's real history (for the model and for reloads).
+        if req.seed_passage_id is not None:
+            seed_passage = db.get(Passage, req.seed_passage_id)
+            if seed_passage is not None:
+                db.add(
+                    Message(
+                        conversation_id=conversation.id,
+                        role="assistant",
+                        content=seed_message_content(seed_passage),
+                    )
+                )
+                db.commit()
 
     history = list(
         db.scalars(
@@ -111,9 +193,13 @@ def chat(req: ChatRequest, db: Session = Depends(get_db)) -> StreamingResponse:
 
 
 @app.get("/api/conversations/{conversation_id}", response_model=ConversationOut)
-def get_conversation(conversation_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_conversation(
+    conversation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(current_user_optional),
+):
     conversation = db.get(Conversation, conversation_id)
-    if conversation is None:
+    if conversation is None or not _conversation_visible(conversation, user):
         raise HTTPException(404, "Conversation not found")
     return conversation
 

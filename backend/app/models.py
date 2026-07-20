@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -26,13 +26,92 @@ class Passage(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
 
+class PassageAudio(Base):
+    """Synthesized narration of a passage, cached forever after first listen.
+
+    The corpus is immutable, so each (passage, voice) pair is synthesized at
+    most once; voice is part of the key so a future re-voicing doesn't require
+    dropping existing audio."""
+
+    __tablename__ = "passage_audio"
+
+    passage_id: Mapped[int] = mapped_column(
+        ForeignKey("passages.id", ondelete="CASCADE"), primary_key=True
+    )
+    voice: Mapped[str] = mapped_column(String(50), primary_key=True)
+    media_type: Mapped[str] = mapped_column(String(50))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class User(Base):
+    """Satisfies the fastapi-users user protocol (see app/auth.py)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(1024))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Note(Base):
+    """One model for both journal entries and margin notes: a note with a
+    passage_id is a margin note on that passage; without one it's a freeform
+    journal entry."""
+
+    __tablename__ = "notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    passage_id: Mapped[int | None] = mapped_column(
+        ForeignKey("passages.id", ondelete="SET NULL"), nullable=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    passage: Mapped[Passage | None] = relationship()
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
     )
+    # NULL = anonymous conversation (chat while logged out is still allowed).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Set = this conversation is the reflection thread under that journal
+    # entry; the entry's deletion cascades to it.
+    note_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("notes.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
