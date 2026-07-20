@@ -14,12 +14,40 @@ class Settings(BaseSettings):
     def _force_psycopg_driver(cls, v: object) -> object:
         """Hosted Postgres (Railway, Heroku, ...) hands out postgres:// or
         postgresql:// URLs; SQLAlchemy would resolve those to psycopg2, which
-        isn't installed. Rewrite to the psycopg (v3) driver."""
-        if isinstance(v, str):
-            for prefix in ("postgres://", "postgresql://"):
-                if v.startswith(prefix):
-                    return "postgresql+psycopg://" + v[len(prefix):]
-        return v
+        isn't installed. Rewrite to the psycopg (v3) driver.
+
+        Also tolerate copy/paste artifacts (surrounding quotes, whitespace)
+        and fail fast with a redacted hint when the value can't be a URL —
+        SQLAlchemy's own parse error refuses to show the string, which makes
+        deploy logs undiagnosable.
+        """
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip()
+        if (
+            len(cleaned) >= 2
+            and cleaned[0] == cleaned[-1]
+            and cleaned[0] in ("'", '"')
+        ):
+            cleaned = cleaned[1:-1].strip()
+        if "${{" in cleaned or "}}" in cleaned:
+            raise ValueError(
+                "DATABASE_URL contains a literal '${{...}}' Railway template that "
+                "was never resolved. In the Railway dashboard the reference must "
+                "render as a chip/tag (use autocomplete), and the referenced "
+                "service name must match exactly."
+            )
+        for prefix in ("postgres://", "postgresql://"):
+            if cleaned.startswith(prefix):
+                return "postgresql+psycopg://" + cleaned[len(prefix):]
+        if not cleaned.startswith("postgresql+psycopg://"):
+            hint = cleaned[:12] + "..." if cleaned else "<empty string>"
+            raise ValueError(
+                f"DATABASE_URL does not look like a Postgres URL (starts with: {hint!r}). "
+                "Check the environment variable — an empty value or a typo in the "
+                "scheme are the usual causes."
+            )
+        return cleaned
 
     # Read from .env and passed to the SDK explicitly (pydantic-settings does
     # not export .env values to os.environ, so the SDK can't see them itself).
