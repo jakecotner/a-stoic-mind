@@ -189,6 +189,8 @@ export default function App() {
   const [readingPos, setReadingPos] = useState<ReadingPage | null>(null);
   // Bumped on any journal change; tells the sidebar to refetch.
   const [notesVersion, setNotesVersion] = useState(0);
+  // Past entry open in the Journal view (picked in the sidebar or just saved).
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("stoa:sidebar-collapsed") === "1",
   );
@@ -348,6 +350,11 @@ export default function App() {
           setView("reading");
         }}
         notesVersion={notesVersion}
+        openNoteId={view === "journal" ? openNoteId : null}
+        onOpenNote={(id) => {
+          setOpenNoteId(id);
+          setView("journal");
+        }}
       />
       <div className="main-col">
       {view === "reading" && (
@@ -362,9 +369,11 @@ export default function App() {
       )}
 
       {view === "journal" && (
-        <main className="view">
+        <main className="view view-wide">
           <Journal
             user={user}
+            openNoteId={openNoteId}
+            onOpenNote={setOpenNoteId}
             onOpenPassage={(passageId) => {
               setReadingTarget({ kind: "passage", passageId });
               setView("reading");

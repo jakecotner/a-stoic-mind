@@ -1,8 +1,17 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -88,6 +97,28 @@ class Note(Base):
     )
 
     passage: Mapped[Passage | None] = relationship()
+
+
+class PassageRead(Base):
+    """A passage a signed-in user read on a given day (the calendar view's
+    reading history). read_on is the CLIENT-local date, sent by the client so
+    the server never has to reason about timezones for reads. The composite
+    key makes re-reading the same passage the same day a no-op."""
+
+    __tablename__ = "passage_reads"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    passage_id: Mapped[int] = mapped_column(
+        ForeignKey("passages.id", ondelete="CASCADE"), primary_key=True
+    )
+    read_on: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Conversation(Base):

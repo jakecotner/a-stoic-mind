@@ -8,6 +8,7 @@ import {
   fetchNotes,
   streamChat,
   streamReflection,
+  trackReads,
   updateNote,
   type AuthUser,
 } from "./api";
@@ -157,6 +158,28 @@ function EntryThread({
     setMsgs(ms);
   }
 
+  // The split layout makes the left pane the reflection's home: surface an
+  // existing thread as soon as its entry opens, not behind a click.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || !note.thread_id) return;
+    autoOpened.current = true;
+    openExisting();
+  });
+
+  // Follow the stream: keep the scrolling pane pinned to the bottom while a
+  // response arrives, but let go the moment the reader scrolls up.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const streamedLen = msgs?.length ? msgs[msgs.length - 1].content.length : 0;
+  useEffect(() => {
+    if (!busy) return;
+    const pane = rootRef.current?.closest(".journal-pane");
+    if (!pane) return;
+    const nearBottom =
+      pane.scrollHeight - pane.scrollTop - pane.clientHeight < 160;
+    if (nearBottom) pane.scrollTop = pane.scrollHeight;
+  }, [busy, streamedLen]);
+
   const dictation = useDictation((t) =>
     setDraft((d) => (d ? d.trimEnd() + " " + t : t)),
   );
@@ -195,7 +218,7 @@ function EntryThread({
   }
 
   return (
-    <div className="entry-thread">
+    <div className="entry-thread" ref={rootRef}>
       {!open ? (
         <button className="auth-link entry-thread-toggle" onClick={openExisting}>
           Show reflection
@@ -246,20 +269,14 @@ function EntryThread({
 
 function NoteEntry({
   note,
-  seedPassageId,
-  autoStartThread,
   onChanged,
   onDeleted,
   onOpenPassage,
-  onThreadKnown,
 }: {
   note: Note;
-  seedPassageId: number | null;
-  autoStartThread: boolean;
   onChanged: (n: Note) => void;
   onDeleted: (id: string) => void;
   onOpenPassage: (passageId: number) => void;
-  onThreadKnown: (noteId: string, threadId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
@@ -337,24 +354,24 @@ function NoteEntry({
           </button>
         </footer>
       )}
-      <EntryThread
-        note={note}
-        seedPassageId={seedPassageId}
-        autoStart={autoStartThread}
-        onThreadKnown={onThreadKnown}
-      />
     </article>
   );
 }
 
 export default function Journal({
   user,
+  openNoteId,
+  onOpenNote,
   onOpenPassage,
   onMutated,
   onGoToTexts,
   onSignIn,
 }: {
   user: AuthUser | null;
+  /** The single past entry shown below the composer (picked in the sidebar
+      or just saved); null shows none. */
+  openNoteId: string | null;
+  onOpenNote: (id: string | null) => void;
   onOpenPassage: (passageId: number) => void;
   /** Called after any create/edit/delete so the sidebar can refresh. */
   onMutated: () => void;
@@ -384,6 +401,7 @@ export default function Journal({
     const fresh = () => promptToken.current === token;
     fetchDaily().then((p) => {
       if (!p || !fresh()) return;
+      trackReads([p.id]); // the daily passage counts as read
       setPrompt({ passage: p, reflection: "", done: false, error: null });
       streamReflection(p.id, {
         onMeta: () => {},
@@ -428,6 +446,7 @@ export default function Journal({
       setNotes((ns) => [note, ...ns]);
       setDraft("");
       onMutated();
+      onOpenNote(note.id);
       if (reflect) setAutoReflectId(note.id);
     } catch (e) {
       setError(String(e));
@@ -443,101 +462,146 @@ export default function Journal({
     return note.passage_id;
   };
 
+  const openNote = openNoteId ? notes.find((n) => n.id === openNoteId) : undefined;
+
+  // The thread sits below the passage + breakdown in the left pane; bring it
+  // into view when an entry opens so a streaming reflection isn't invisible.
+  const threadRef = useRef<HTMLDivElement>(null);
+  const openId = openNote?.id;
+  useEffect(() => {
+    if (openId)
+      threadRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [openId]);
+
   return (
     <div className="journal">
       <h2 className="view-title">Journal</h2>
 
-      {prompt && (
-        <>
-          <DailyQuote
-            quote={prompt.passage}
-            onReadInContext={() => onOpenPassage(prompt.passage.id)}
-          />
-          {prompt.reflection ? (
-            <div className="daily-breakdown">
-              <Markdown>{prompt.reflection}</Markdown>
+      <div className="journal-split">
+        {/* Left: the Stoa's voice — today's passage, its breakdown, and the
+            reflection thread for whichever entry is open. */}
+        <section className="journal-pane stoa-pane" aria-label="Daily passage and reflection">
+          {prompt && (
+            <>
+              <DailyQuote
+                quote={prompt.passage}
+                onReadInContext={() => onOpenPassage(prompt.passage.id)}
+              />
+              {prompt.reflection ? (
+                <div className="daily-breakdown">
+                  <Markdown>{prompt.reflection}</Markdown>
+                </div>
+              ) : prompt.error ? null : (
+                <div className="thinking">Reading today's passage&hellip;</div>
+              )}
+            </>
+          )}
+
+          {openNote && (
+            <div className="stoa-thread" ref={threadRef}>
+              <div className="pane-caption">Reflection</div>
+              <EntryThread
+                key={openNote.id}
+                note={openNote}
+                seedPassageId={seedFor(openNote)}
+                autoStart={openNote.id === autoReflectId}
+                onThreadKnown={(noteId, threadId) =>
+                  setNotes((ns) =>
+                    ns.map((x) =>
+                      x.id === noteId ? { ...x, thread_id: threadId } : x,
+                    ),
+                  )
+                }
+              />
             </div>
-          ) : prompt.error ? null : (
-            <div className="thinking">Reading today's passage&hellip;</div>
           )}
-        </>
-      )}
+        </section>
 
-      {user ? (
-        <div className="note-compose journal-compose">
-          <textarea
-            value={draft}
-            rows={3}
-            placeholder={
-              dictation.listening
-                ? "Listening — speak what's on your mind…"
-                : "Respond to today's passage — or write what's on your mind"
-            }
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          {dictation.interim && (
-            <div className="dictation-interim">{dictation.interim}…</div>
+        {/* Right: your writing — the editor, or the entry picked in the
+            sidebar. */}
+        <section className="journal-pane entry-pane" aria-label="Journal entry">
+          {user ? (
+            openNote ? (
+              <>
+                <div className="entry-pane-bar">
+                  <button className="auth-link" onClick={() => onOpenNote(null)}>
+                    ← New entry
+                  </button>
+                </div>
+                <NoteEntry
+                  key={openNote.id}
+                  note={openNote}
+                  onChanged={(updated) => {
+                    setNotes((ns) =>
+                      ns.map((x) => (x.id === updated.id ? updated : x)),
+                    );
+                    onMutated();
+                  }}
+                  onDeleted={(id) => {
+                    setNotes((ns) => ns.filter((x) => x.id !== id));
+                    onOpenNote(null);
+                    onMutated();
+                  }}
+                  onOpenPassage={onOpenPassage}
+                />
+              </>
+            ) : (
+              <div className="note-compose journal-compose">
+                <textarea
+                  value={draft}
+                  placeholder={
+                    dictation.listening
+                      ? "Listening — speak what's on your mind…"
+                      : "Respond to today's passage — or write what's on your mind"
+                  }
+                  onChange={(e) => setDraft(e.target.value)}
+                />
+                {dictation.interim && (
+                  <div className="dictation-interim">{dictation.interim}…</div>
+                )}
+                <div className="note-compose-actions">
+                  <MicButton dictation={dictation} />
+                  <button
+                    onClick={() => compose(true)}
+                    disabled={busy || !draft.trim()}
+                  >
+                    Save &amp; reflect with the Stoa
+                  </button>
+                  <button
+                    className="auth-link"
+                    onClick={() => compose(false)}
+                    disabled={busy || !draft.trim()}
+                  >
+                    Just save
+                  </button>
+                </div>
+              </div>
+            )
+          ) : (
+            <p className="intro">
+              <button className="auth-link" onClick={onSignIn}>
+                Sign in
+              </button>{" "}
+              to keep a journal — daily reflections on the texts, notes in the
+              margins, and the Stoa to think alongside you.
+            </p>
           )}
-          <div className="note-compose-actions">
-            <MicButton dictation={dictation} />
-            <button onClick={() => compose(true)} disabled={busy || !draft.trim()}>
-              Save &amp; reflect with the Stoa
-            </button>
-            <button
-              className="auth-link"
-              onClick={() => compose(false)}
-              disabled={busy || !draft.trim()}
-            >
-              Just save
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="intro">
-          <button className="auth-link" onClick={onSignIn}>
-            Sign in
-          </button>{" "}
-          to keep a journal — daily reflections on the texts, notes in the
-          margins, and the Stoa to think alongside you.
-        </p>
-      )}
 
-      {error && <p className="msg-error">{error}</p>}
+          {error && <p className="msg-error">{error}</p>}
 
-      {user && notes.length === 0 ? (
-        <p className="intro">
-          Nothing here yet. Marcus Aurelius wrote his <em>Meditations</em> for
-          no reader but himself — begin yours above, or leave a note in the
-          margins{" "}
-          <button className="auth-link" onClick={onGoToTexts}>
-            as you read
-          </button>
-          .
-        </p>
-      ) : (
-        notes.map((n) => (
-          <NoteEntry
-            key={n.id}
-            note={n}
-            seedPassageId={seedFor(n)}
-            autoStartThread={n.id === autoReflectId}
-            onChanged={(updated) => {
-              setNotes((ns) => ns.map((x) => (x.id === updated.id ? updated : x)));
-              onMutated();
-            }}
-            onDeleted={(id) => {
-              setNotes((ns) => ns.filter((x) => x.id !== id));
-              onMutated();
-            }}
-            onOpenPassage={onOpenPassage}
-            onThreadKnown={(noteId, threadId) =>
-              setNotes((ns) =>
-                ns.map((x) => (x.id === noteId ? { ...x, thread_id: threadId } : x)),
-              )
-            }
-          />
-        ))
-      )}
+          {user && !openNote && notes.length === 0 && (
+            <p className="intro">
+              Nothing here yet. Marcus Aurelius wrote his <em>Meditations</em>{" "}
+              for no reader but himself — begin yours here, or leave a note in
+              the margins{" "}
+              <button className="auth-link" onClick={onGoToTexts}>
+                as you read
+              </button>
+              .
+            </p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

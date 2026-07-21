@@ -1,29 +1,56 @@
-import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MarkdownLite } from '@/components/markdown-lite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { fetchDaily } from '@/lib/api';
+import { useTheme } from '@/hooks/use-theme';
+import { fetchDaily, streamReflection, trackReads } from '@/lib/api';
 import type { Source } from '@/lib/types';
 
 export default function TodayScreen() {
+  const router = useRouter();
+  const theme = useTheme();
   const [passage, setPassage] = useState<Source | null>(null);
+  const [reflection, setReflection] = useState('');
+  const [reflectionError, setReflectionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Guards against a stale stream writing into a refreshed screen.
+  const loadToken = useRef(0);
 
   const load = useCallback(async () => {
+    const token = ++loadToken.current;
+    const fresh = () => loadToken.current === token;
     try {
       const daily = await fetchDaily();
-      if (daily) {
-        setPassage(daily);
-        setError(null);
-      } else {
+      if (!fresh()) return;
+      if (!daily) {
         setError('Could not load the daily passage.');
+        return;
       }
+      setPassage(daily);
+      setError(null);
+      setReflection('');
+      setReflectionError(null);
+      trackReads([daily.id]); // fire-and-forget; no-op when signed out
+      streamReflection(daily.id, {
+        onMeta: () => {},
+        onDelta: (d) => {
+          if (fresh()) setReflection((r) => r + d);
+        },
+        onError: (e) => {
+          if (fresh()) setReflectionError(e);
+        },
+        onDone: () => {},
+      }).catch(() => {
+        if (fresh()) setReflectionError('The Stoa is unavailable right now.');
+      });
     } catch {
-      setError('Could not reach the server. Check API_BASE in src/lib/config.ts.');
+      if (fresh()) setError('Could not reach the server.');
     }
   }, []);
 
@@ -46,25 +73,49 @@ export default function TodayScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }>
           <ThemedText type="small" themeColor="textSecondary" style={styles.kicker}>
-            PASSAGE OF THE DAY
+            TODAY'S PASSAGE
           </ThemedText>
 
           {passage && (
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText style={styles.passageText}>{passage.text}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {passage.author}, {passage.work} {passage.reference}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                trans. {passage.translator}
-              </ThemedText>
-            </ThemedView>
+            <>
+              <ThemedView type="backgroundElement" style={styles.card}>
+                <ThemedText style={styles.passageText}>{passage.text}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  — {passage.author}, {passage.work} {passage.reference}
+                </ThemedText>
+              </ThemedView>
+
+              <Pressable
+                style={[styles.reflectButton, { backgroundColor: theme.text }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(tabs)/journal',
+                    params: { seed: String(passage.id) },
+                  })
+                }>
+                <ThemedText type="smallBold" style={{ color: theme.background }}>
+                  Reflect on this
+                </ThemedText>
+              </Pressable>
+
+              {reflection ? (
+                <ThemedView type="backgroundElement" style={styles.breakdown}>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.kicker}>
+                    FROM THE STOA
+                  </ThemedText>
+                  <MarkdownLite>{reflection}</MarkdownLite>
+                </ThemedView>
+              ) : reflectionError ? null : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Reading today's passage…
+                </ThemedText>
+              )}
+            </>
           )}
 
           {!passage && !error && (
             <ThemedText themeColor="textSecondary">Loading…</ThemedText>
           )}
-
           {error && <ThemedText themeColor="textSecondary">{error}</ThemedText>}
         </ScrollView>
       </SafeAreaView>
@@ -98,5 +149,15 @@ const styles = StyleSheet.create({
   passageText: {
     fontSize: 18,
     lineHeight: 28,
+  },
+  reflectButton: {
+    borderRadius: Spacing.two,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  breakdown: {
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.two,
   },
 });

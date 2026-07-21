@@ -90,9 +90,13 @@ function TextsNav({
 function JournalNav({
   user,
   notesVersion,
+  openNoteId,
+  onOpenNote,
 }: {
   user: AuthUser | null;
   notesVersion: number;
+  openNoteId: string | null;
+  onOpenNote: (id: string) => void;
 }) {
   const [notes, setNotes] = useState<Note[]>([]);
 
@@ -126,12 +130,6 @@ function JournalNav({
     return out;
   }, [notes]);
 
-  const scrollTo = (id: string) => {
-    document
-      .getElementById(`note-${id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   return (
     <>
       {!user ? (
@@ -145,8 +143,10 @@ function JournalNav({
             {g.notes.map((n) => (
               <button
                 key={n.id}
-                className="side-item"
-                onClick={() => scrollTo(n.id)}
+                className={
+                  n.id === openNoteId ? "side-item side-active" : "side-item"
+                }
+                onClick={() => onOpenNote(n.id)}
               >
                 <span className="side-item-label">
                   {n.passage
@@ -206,6 +206,8 @@ export default function Sidebar({
   readingPos,
   onNavigateReading,
   notesVersion,
+  openNoteId,
+  onOpenNote,
 }: {
   view: View;
   user: AuthUser | null;
@@ -214,6 +216,8 @@ export default function Sidebar({
   readingPos: ReadingPage | null;
   onNavigateReading: (target: ReadingTarget) => void;
   notesVersion: number;
+  openNoteId: string | null;
+  onOpenNote: (id: string) => void;
 }) {
   if (collapsed) {
     // Slim rail: just the expand affordance.
@@ -250,7 +254,14 @@ export default function Sidebar({
         {view === "reading" && (
           <TextsNav readingPos={readingPos} onNavigate={onNavigateReading} />
         )}
-        {view === "journal" && <JournalNav user={user} notesVersion={notesVersion} />}
+        {view === "journal" && (
+          <JournalNav
+            user={user}
+            notesVersion={notesVersion}
+            openNoteId={openNoteId}
+            onOpenNote={onOpenNote}
+          />
+        )}
       </div>
     </aside>
   );

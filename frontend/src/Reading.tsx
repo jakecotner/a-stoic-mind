@@ -6,6 +6,7 @@ import {
   fetchReadingPage,
   fetchWorks,
   streamReflection,
+  trackReads,
   type AuthUser,
 } from "./api";
 import type { Note, ReadingPage, ReadingTarget, Work } from "./types";
@@ -177,6 +178,7 @@ export default function Reading({
         .then((p) => {
           setPage(p);
           onPageChange(p);
+          trackReads(p.passages.map((x) => x.id));
           localStorage.setItem(LAST_WORK_KEY, p.work);
           localStorage.setItem(posKey(p.work), String(p.offset));
         })

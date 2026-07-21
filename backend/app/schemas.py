@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi_users import schemas as fastapi_users_schemas
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +112,45 @@ class NoteOut(BaseModel):
     passage: NotePassageRef | None = None
     # The entry's reflection-thread conversation, when one exists.
     thread_id: uuid.UUID | None = None
+
+
+class ReadsTrackIn(BaseModel):
+    """Client-reported reading activity. read_on is the client-LOCAL date, so
+    a late-night read in Denver lands on the day the reader experienced."""
+
+    passage_ids: list[int] = Field(min_length=1, max_length=50)
+    read_on: date
+
+
+class CalendarDayOut(BaseModel):
+    date: date
+    entries: int  # journal entries + margin notes created that day
+    passages_read: int
+
+
+class CalendarMonthOut(BaseModel):
+    year: int
+    month: int
+    days: list[CalendarDayOut]  # only days with activity
+
+
+class ReadPassageRef(BaseModel):
+    """A passage in a day's reading history: enough to cite and link."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    author: str
+    work: str
+    reference: str
+
+
+class DayDetailOut(BaseModel):
+    date: date
+    # That day's deterministic daily passage (whether or not it was read).
+    daily_passage: PassageOut | None
+    notes: list[NoteOut]
+    passages_read: list[ReadPassageRef]
 
 
 class MessageOut(BaseModel):

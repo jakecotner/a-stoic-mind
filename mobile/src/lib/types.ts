@@ -37,6 +37,8 @@ export interface Note {
   created_at: string;
   updated_at: string;
   passage: { id: number; work: string; reference: string } | null;
+  /** Conversation anchored under this entry, if a reflection was started. */
+  thread_id: string | null;
 }
 
 export interface TocSection {
@@ -61,6 +63,34 @@ export interface ConversationDetail {
     content: string;
     created_at: string;
   }[];
+}
+
+// --- Practice calendar
+
+export interface CalendarDay {
+  date: string; // YYYY-MM-DD
+  entries: number;
+  passages_read: number;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  days: CalendarDay[]; // only days with activity
+}
+
+export interface ReadPassageRef {
+  id: number;
+  author: string;
+  work: string;
+  reference: string;
+}
+
+export interface DayDetail {
+  date: string;
+  daily_passage: Source | null;
+  notes: Note[];
+  passages_read: ReadPassageRef[];
 }
 
 export interface ChatMessage {

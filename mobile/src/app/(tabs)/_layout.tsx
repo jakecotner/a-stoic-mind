@@ -17,9 +17,9 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="sun.max" md="wb_sunny" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="chat">
-        <NativeTabs.Trigger.Label>Chat</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="bubble.left" md="chat_bubble" />
+      <NativeTabs.Trigger name="calendar">
+        <NativeTabs.Trigger.Label>Practice</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="read">

@@ -25,6 +25,7 @@ from app.db import SessionLocal, get_db
 from app.models import Conversation, Message, Note, Passage, User
 from app.conversations import router as conversations_router
 from app.journal import router as journal_router
+from app.practice import router as practice_router
 from app.reading import router as reading_router
 from app.reflection import router as reflection_router, seed_message_content
 from app.retrieval import search_passages
@@ -59,6 +60,7 @@ app.include_router(
 )
 app.include_router(reading_router)
 app.include_router(journal_router)
+app.include_router(practice_router)
 app.include_router(conversations_router)
 app.include_router(reflection_router)
 # Hook points for when email sending is set up (templates in fastapi-users docs):

@@ -9,8 +9,10 @@ import { fetch as expoFetch } from "expo/fetch";
 import { API_BASE } from "./config";
 import { clearToken, getToken, setToken } from "./token";
 import type {
+  CalendarMonth,
   ConversationDetail,
   ConversationSummary,
+  DayDetail,
   Note,
   ReadingPage,
   Source,
@@ -256,6 +258,52 @@ export async function fetchConversation(
 ): Promise<ConversationDetail | null> {
   const resp = await apiFetch(`/api/conversations/${id}`);
   if (!resp.ok) return null;
+  return resp.json();
+}
+
+// --- Practice tracking / calendar (auth required)
+
+/** Minutes to add to UTC to get local time — the server's tz_offset param. */
+const tzOffset = () => -new Date().getTimezoneOffset();
+
+/** Today's date in the phone's timezone, as YYYY-MM-DD. */
+export function localDateISO(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Log passages as read today. Fire-and-forget: silently a no-op when signed
+    out or offline — reading should never feel gated on bookkeeping. */
+export async function trackReads(passageIds: number[]): Promise<void> {
+  if (passageIds.length === 0) return;
+  if ((await getToken()) === null) return;
+  try {
+    await apiFetch("/api/reads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passage_ids: passageIds, read_on: localDateISO() }),
+    });
+  } catch {
+    /* never surface tracking failures */
+  }
+}
+
+export async function fetchCalendarMonth(
+  year: number,
+  month: number,
+): Promise<CalendarMonth> {
+  const resp = await apiFetch(
+    `/api/calendar/${year}/${month}?tz_offset=${tzOffset()}`,
+  );
+  if (!resp.ok) throw new Error(`Could not load calendar (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchCalendarDay(dateISO: string): Promise<DayDetail> {
+  const resp = await apiFetch(
+    `/api/calendar/day/${dateISO}?tz_offset=${tzOffset()}`,
+  );
+  if (!resp.ok) throw new Error(`Could not load day (${resp.status})`);
   return resp.json();
 }
 

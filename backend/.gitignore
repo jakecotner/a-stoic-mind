@@ -3,3 +3,4 @@
 __pycache__/
 *.pyc
 scripts/data/
+deployment_error_log.md

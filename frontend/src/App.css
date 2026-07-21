@@ -875,9 +875,70 @@ body {
   font-size: 0.8rem;
 }
 
-.journal {
-  max-width: 780px;
-  margin: 0 auto;
+/* Split view: the Stoa's voice on the left, your writing on the right.
+   Needs a wider canvas than the reading column. */
+.view-wide {
+  max-width: 1440px;
+}
+
+.journal-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.8rem;
+  align-items: start;
+}
+
+/* Each pane scrolls on its own so a long reflection never pushes the
+   editor off-screen (7.5rem ≈ view padding + title above the fold). */
+.journal-pane {
+  height: calc(100vh - var(--appbar-h) - 7.5rem);
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.entry-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The editor is the pane: fill the column, invite long entries. */
+.entry-pane .journal-compose {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.entry-pane .journal-compose textarea {
+  flex: 1;
+  resize: none;
+  min-height: 8rem;
+}
+
+.entry-pane-bar {
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.pane-caption {
+  color: var(--gold);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+
+.stoa-thread {
+  margin-top: 1.4rem;
+}
+
+/* The thread grew a top border as part of a journal entry card; in its own
+   pane the caption already separates it. */
+.stoa-thread .entry-thread,
+.stoa-thread .entry-thread-start {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 /* --- Small screens --- */
@@ -1058,6 +1119,21 @@ body {
 @media (max-width: 900px) {
   .sidebar {
     display: none;
+  }
+
+  /* Stack back to a single column: passage and thread, then the editor. */
+  .journal-split {
+    grid-template-columns: 1fr;
+  }
+
+  .journal-pane {
+    height: auto;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .entry-pane .journal-compose textarea {
+    min-height: 6rem;
   }
 }
 

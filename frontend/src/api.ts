@@ -174,6 +174,28 @@ export async function logout(): Promise<void> {
   await fetch("/api/auth/logout", { method: "POST" });
 }
 
+// --- Practice tracking (calendar view). Auth via the session cookie; a 401
+// (signed out) is deliberately ignored — reading is never gated on bookkeeping.
+
+function localDateISO(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Log passages as read today (client-local date). Fire-and-forget. */
+export async function trackReads(passageIds: number[]): Promise<void> {
+  if (passageIds.length === 0) return;
+  try {
+    await fetch("/api/reads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passage_ids: passageIds, read_on: localDateISO() }),
+    });
+  } catch {
+    /* never surface tracking failures */
+  }
+}
+
 // --- Reading
 
 export async function fetchWorks(): Promise<Work[]> {
