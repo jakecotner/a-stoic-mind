@@ -93,6 +93,12 @@ export interface DayDetail {
   passages_read: ReadPassageRef[];
 }
 
+export interface PracticePlan {
+  reminder_time: string; // "HH:MM", local wall time
+  duration_minutes: number;
+  updated_at: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanCard } from '@/components/plan-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -113,17 +114,17 @@ export default function CalendarScreen() {
     return map;
   }, [months]);
 
-  const streak = useMemo(
+  const activeDates = useMemo(
     () =>
-      computeStreak(
-        new Set(
-          Object.values(dayMap)
-            .filter((d) => d.entries > 0 || d.passages_read > 0)
-            .map((d) => d.date),
-        ),
+      new Set(
+        Object.values(dayMap)
+          .filter((d) => d.entries > 0 || d.passages_read > 0)
+          .map((d) => d.date),
       ),
     [dayMap],
   );
+
+  const streak = useMemo(() => computeStreak(activeDates), [activeDates]);
 
   if (user === null) {
     return (
@@ -171,6 +172,8 @@ export default function CalendarScreen() {
               </ThemedText>
             )}
           </View>
+
+          <PlanCard activeDates={activeDates} />
 
           <View style={styles.monthNav}>
             <Pressable

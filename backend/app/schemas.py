@@ -153,6 +153,21 @@ class DayDetailOut(BaseModel):
     passages_read: list[ReadPassageRef]
 
 
+class PlanIn(BaseModel):
+    """The user's committed practice: local wall time + minutes."""
+
+    reminder_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    duration_minutes: int = Field(ge=1, le=180)
+
+
+class PlanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    reminder_time: str
+    duration_minutes: int
+    updated_at: datetime
+
+
 class MessageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -121,6 +121,25 @@ class PassageRead(Base):
     )
 
 
+class PracticePlan(Base):
+    """One row per user: the practice they've committed to. reminder_time is
+    client-local wall time ("HH:MM") — the client schedules its own local
+    notification, so the server never converts it."""
+
+    __tablename__ = "practice_plans"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    reminder_time: Mapped[str] = mapped_column(String(5))  # "HH:MM"
+    duration_minutes: Mapped[int]
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 

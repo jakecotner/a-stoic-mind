@@ -14,6 +14,7 @@ import type {
   ConversationSummary,
   DayDetail,
   Note,
+  PracticePlan,
   ReadingPage,
   Source,
   TocSection,
@@ -305,6 +306,35 @@ export async function fetchCalendarDay(dateISO: string): Promise<DayDetail> {
   );
   if (!resp.ok) throw new Error(`Could not load day (${resp.status})`);
   return resp.json();
+}
+
+// --- Practice plan (auth required; one per user)
+
+export async function fetchPlan(): Promise<PracticePlan | null> {
+  const resp = await apiFetch("/api/plan");
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+export async function savePlan(
+  reminderTime: string,
+  durationMinutes: number,
+): Promise<PracticePlan> {
+  const resp = await apiFetch("/api/plan", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reminder_time: reminderTime,
+      duration_minutes: durationMinutes,
+    }),
+  });
+  if (!resp.ok) throw new Error(`Could not save plan (${resp.status})`);
+  return resp.json();
+}
+
+export async function deletePlan(): Promise<void> {
+  const resp = await apiFetch("/api/plan", { method: "DELETE" });
+  if (!resp.ok) throw new Error(`Could not remove plan (${resp.status})`);
 }
 
 // --- Notes / journal (auth required)

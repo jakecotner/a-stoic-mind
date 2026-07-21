@@ -16,11 +16,13 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import current_active_user
 from app.db import get_db
 from app.journal import _stamp_thread_ids
-from app.models import Note, Passage, PassageRead, User
+from app.models import Note, Passage, PassageRead, PracticePlan, User
 from app.schemas import (
     CalendarDayOut,
     CalendarMonthOut,
     DayDetailOut,
+    PlanIn,
+    PlanOut,
     ReadsTrackIn,
     ReadPassageRef,
 )
@@ -54,6 +56,45 @@ def track_reads(
         .on_conflict_do_nothing()
     )
     db.commit()
+
+
+@router.get("/plan", response_model=PlanOut | None)
+def get_plan(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+):
+    """The user's practice plan, or null if none has been made."""
+    return db.get(PracticePlan, user.id)
+
+
+@router.put("/plan", response_model=PlanOut)
+def put_plan(
+    body: PlanIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+):
+    """Create or update the plan (one per user)."""
+    plan = db.get(PracticePlan, user.id)
+    if plan is None:
+        plan = PracticePlan(user_id=user.id, **body.model_dump())
+        db.add(plan)
+    else:
+        plan.reminder_time = body.reminder_time
+        plan.duration_minutes = body.duration_minutes
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@router.delete("/plan", status_code=204)
+def delete_plan(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+):
+    plan = db.get(PracticePlan, user.id)
+    if plan is not None:
+        db.delete(plan)
+        db.commit()
 
 
 def _local_day(dt, tz_offset: int) -> date:
