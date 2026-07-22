@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MarkdownLite } from '@/components/markdown-lite';
+import { PlayButton } from '@/components/play-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -25,6 +26,7 @@ import {
   trackReads,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { API_BASE } from '@/lib/config';
 import type { Note, ReadingPage, TocSection, Work } from '@/lib/types';
 
 // Reading position, persisted per work. SecureStore is already in the build
@@ -339,6 +341,7 @@ export default function ReadScreen() {
                     {passage.reference}
                   </ThemedText>
                   <ThemedText style={styles.passageText}>{passage.text}</ThemedText>
+                  <PlayButton src={`${API_BASE}/api/passages/${passage.id}/audio`} />
                   <PassageBreakdown key={`b${passage.id}`} passageId={passage.id} />
                   <PassageNotes key={`n${passage.id}`} passageId={passage.id} />
                 </>

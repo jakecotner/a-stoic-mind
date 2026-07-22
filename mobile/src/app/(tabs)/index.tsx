@@ -4,11 +4,13 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MarkdownLite } from '@/components/markdown-lite';
+import { PlayButton } from '@/components/play-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchDaily, streamReflection, trackReads } from '@/lib/api';
+import { API_BASE } from '@/lib/config';
 import type { Source } from '@/lib/types';
 
 export default function TodayScreen() {
@@ -83,6 +85,7 @@ export default function TodayScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   — {passage.author}, {passage.work} {passage.reference}
                 </ThemedText>
+                <PlayButton src={`${API_BASE}/api/passages/${passage.id}/audio`} />
               </ThemedView>
 
               <Pressable
