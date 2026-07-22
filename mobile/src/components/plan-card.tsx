@@ -158,7 +158,7 @@ export function PlanCard({ activeDates }: { activeDates: Set<string> }) {
     return (
       <ThemedView type="backgroundElement" style={styles.card}>
         <ThemedText type="smallBold">
-          {plan ? 'Adjust your practice' : 'Commit to a practice'}
+          {plan ? 'Adjust your intention' : 'Set an intention'}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           A small promise, kept daily, outweighs a grand one abandoned.
@@ -193,7 +193,7 @@ export function PlanCard({ activeDates }: { activeDates: Set<string> }) {
             onPress={commit}
             disabled={busy}>
             <ThemedText type="smallBold" style={{ color: theme.background }}>
-              {plan ? 'Save' : 'Commit'}
+              {plan ? 'Save' : 'Set intention'}
             </ThemedText>
           </Pressable>
           {editing && (
@@ -206,7 +206,7 @@ export function PlanCard({ activeDates }: { activeDates: Set<string> }) {
           {plan && editing && (
             <Pressable onPress={remove} disabled={busy}>
               <ThemedText type="small" style={styles.deleteText}>
-                Remove plan
+                Remove intention
               </ThemedText>
             </Pressable>
           )}

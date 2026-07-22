@@ -16,6 +16,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   registerAndSignIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Permanently delete the account and all of its data. */
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -50,8 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    await api.deleteAccount();
+    setUser(null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, signIn, registerAndSignIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, signIn, registerAndSignIn, signOut, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

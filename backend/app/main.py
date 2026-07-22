@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func, select
+from sqlalchemy import delete as sa_delete, func, select
 from sqlalchemy.orm import Session
 
 from app import llm
@@ -71,6 +71,24 @@ app.include_router(reflection_router)
 @app.get("/api/auth/me", response_model=UserRead)
 def me(user: User = Depends(current_active_user)):
     return user
+
+
+@app.delete("/api/auth/me", status_code=204)
+def delete_me(
+    db: Session = Depends(get_db), user: User = Depends(current_active_user)
+):
+    """Self-service account deletion (App Store guideline 5.1.1(v)).
+
+    Deleting the user cascades notes → their anchored reflection threads →
+    messages, plus passage_reads and the practice plan. Conversations are
+    deleted explicitly first: their user_id FK is SET NULL, which would
+    otherwise leave the user's non-anchored chat history orphaned but intact.
+    """
+    db.execute(sa_delete(Conversation).where(Conversation.user_id == user.id))
+    row = db.get(User, user.id)
+    if row is not None:
+        db.delete(row)
+    db.commit()
 
 
 def _conversation_visible(conversation: Conversation, user: User | None) -> bool:

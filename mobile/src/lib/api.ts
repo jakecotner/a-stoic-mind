@@ -215,6 +215,14 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** Permanently delete the account and everything it owns (App Store
+    guideline 5.1.1(v) requires this to be reachable in-app). */
+export async function deleteAccount(): Promise<void> {
+  const resp = await apiFetch("/api/auth/me", { method: "DELETE" });
+  if (!resp.ok) throw new Error(`Could not delete account (${resp.status})`);
+  await clearToken();
+}
+
 // --- Reading
 
 export async function fetchWorks(): Promise<Work[]> {

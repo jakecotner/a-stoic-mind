@@ -1,6 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -102,7 +103,7 @@ function EntryCard({
 }
 
 export default function JournalScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   // Passage id handed over by the Today tab's "Reflect on this".
   const params = useLocalSearchParams<{ seed?: string }>();
@@ -138,6 +139,30 @@ export default function JournalScreen() {
   }, [user]);
 
   const seedId = params.seed ? Number(params.seed) : dailyId;
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your journal, reflections, reading history, and intention. There is no undo.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount();
+            } catch (e) {
+              Alert.alert(
+                'Could not delete account',
+                e instanceof Error ? e.message : String(e),
+              );
+            }
+          },
+        },
+      ],
+    );
+  }
 
   async function compose(reflect: boolean) {
     const content = draft.trim();
@@ -272,6 +297,21 @@ export default function JournalScreen() {
                 }
               />
             ))}
+
+            <View style={styles.footer}>
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.centerText}>
+                A philosophical practice tool, not therapy or medical care. In
+                crisis? Call or text 988 (US) or your local emergency services.
+              </ThemedText>
+              <Pressable onPress={confirmDeleteAccount} hitSlop={8}>
+                <ThemedText type="small" style={styles.deleteText}>
+                  Delete account
+                </ThemedText>
+              </Pressable>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -355,6 +395,12 @@ const styles = StyleSheet.create({
   confirmRow: {
     flexDirection: 'row',
     gap: Spacing.three,
+  },
+  footer: {
+    alignItems: 'center',
+    gap: Spacing.three,
+    marginTop: Spacing.four,
+    paddingHorizontal: Spacing.three,
   },
   deleteText: {
     color: '#d33',
