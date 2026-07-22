@@ -7,20 +7,25 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+// Earthy register shared with the web app (frontend/src/App.css): parchment
+// and umber rather than white and black — dark mode is a lamplit study, not
+// an OLED void. Keep the two palettes in sync when either changes.
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#26241f', // --ink
+    background: '#f6f2ea', // --bg
+    backgroundElement: '#fdfbf6', // --card
+    backgroundSelected: '#ece5d6', // --msg-user-bg
+    textSecondary: '#5c574c', // --ink-soft
+    gold: '#a4762f', // --gold (links, accents)
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#e7dfcf',
+    background: '#211e18',
+    backgroundElement: '#2a2620',
+    backgroundSelected: '#383226',
+    textSecondary: '#a69c86',
+    gold: '#c79c55',
   },
 } as const;
 

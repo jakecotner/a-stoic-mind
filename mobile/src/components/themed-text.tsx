@@ -14,7 +14,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        // Links take the theme's gold accent (web parity) unless overridden.
+        { color: theme[themeColor ?? (type === 'linkPrimary' ? 'gold' : 'text')] },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
         type === 'small' && styles.small,
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
   linkPrimary: {
     lineHeight: 30,
     fontSize: 14,
-    color: '#3c87f7',
+    // Color comes from the theme's gold accent (set in the component).
   },
   code: {
     fontFamily: Fonts.mono,
