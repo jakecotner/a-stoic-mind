@@ -11,6 +11,7 @@ import {
   type BillingSummary,
 } from "./api";
 import { AccountModal, UpgradeModal } from "./Account";
+import { SettingsModal, type Theme } from "./Settings";
 import type { Language, ReadingPage, ReadingTarget } from "./types";
 import Reading from "./Reading";
 import Journal from "./Journal";
@@ -20,7 +21,6 @@ import "./App.css";
 
 type View = "reading" | "journal" | "practice";
 type AuthMode = "login" | "register";
-type Theme = "light" | "dark";
 
 const LANG_KEY = "stoa:reading:lang";
 
@@ -207,7 +207,8 @@ export default function App() {
   // pre-render script, which sets data-theme before React mounts).
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem("stoa:theme");
-    if (stored === "light" || stored === "dark") return stored;
+    if (stored === "light" || stored === "dark" || stored === "midnight")
+      return stored;
     return window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
@@ -252,6 +253,7 @@ export default function App() {
   // Plan/usage summary for the signed-in user (null while signed out).
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Set when a reflection request hits the free-tier monthly cap (402).
   const [capHit, setCapHit] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -333,7 +335,7 @@ export default function App() {
                       setMenuOpen(false);
                     }}
                   >
-                    Account &amp; plan
+                    Account
                   </button>
                   <button
                     className="menu-item"
@@ -371,11 +373,12 @@ export default function App() {
               <div className="menu-sep" />
               <button
                 className="menu-item"
-                onClick={() =>
-                  setTheme((t) => (t === "dark" ? "light" : "dark"))
-                }
+                onClick={() => {
+                  setSettingsOpen(true);
+                  setMenuOpen(false);
+                }}
               >
-                {theme === "dark" ? "Light mode" : "Dark mode"}
+                Settings
               </button>
             </nav>
           )}
@@ -422,10 +425,18 @@ export default function App() {
         <AccountModal
           user={user}
           billing={billing}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal
+          theme={theme}
+          onThemeChange={setTheme}
           languages={languages}
           lang={lang}
           onLangChange={changeLang}
-          onClose={() => setAccountOpen(false)}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 

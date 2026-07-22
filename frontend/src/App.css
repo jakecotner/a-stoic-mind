@@ -31,6 +31,23 @@
   --overlay: rgba(10, 9, 7, 0.55);
 }
 
+/* Midnight: sharper than dark — near-black ground, brighter parchment ink,
+   gold turned up. High contrast for night reading. */
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #0c0b09;
+  --ink: #ece5d4;
+  --ink-soft: #9b937f;
+  --gold: #d4a75c;
+  --card: #161410;
+  --line: #2c2820;
+  --msg-user-bg: #221e16;
+  --error: #e08f75;
+  --shadow: rgba(0, 0, 0, 0.6);
+  --shadow-strong: rgba(0, 0, 0, 0.8);
+  --overlay: rgba(0, 0, 0, 0.68);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -794,6 +811,59 @@ body {
 .acct-note {
   margin-top: 0.6rem;
   text-align: center;
+}
+
+/* --- Settings: theme cards (swatch colors are inline, per theme) --- */
+
+.theme-cards {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.theme-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--ink);
+  padding: 0.65rem 0.5rem 0.5rem;
+  cursor: pointer;
+}
+
+.theme-card:hover {
+  border-color: var(--gold);
+}
+
+.theme-selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.7rem;
+  height: 1.9rem;
+  border: 1px solid;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.theme-name {
+  font-size: 0.9rem;
+}
+
+.theme-blurb {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-style: italic;
 }
 
 /* Near-cap nudge beside a composer ("3 reflections left this month"). */

@@ -12,7 +12,7 @@
       // Set the theme before first paint so dark mode doesn't flash light.
       (function () {
         var t = localStorage.getItem("stoa:theme");
-        if (t !== "light" && t !== "dark") {
+        if (t !== "light" && t !== "dark" && t !== "midnight") {
           t = window.matchMedia("(prefers-color-scheme: dark)").matches
             ? "dark"
             : "light";

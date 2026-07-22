@@ -1,19 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  fetchVoices,
   openBillingPortal,
   startCheckout,
   type AuthUser,
   type BillingPlan,
   type BillingSummary,
 } from "./api";
-import type { Language, Voice } from "./types";
-import { getVoicePref, setVoicePref } from "./audio";
 
-/* Account & upgrade UI (MONETIZATION.md §3, §5). One paid tier, annual
-   presented first; reading/journaling/export reassurance stays visible on
-   every pitch. No always-on usage meters — the account page may show usage,
-   but in-flow surfaces only appear near the cap (CapHint). */
+/* Account & upgrade UI (MONETIZATION.md §3, §5): identity, plan, billing.
+   One paid tier, annual presented first; reading/journaling/export
+   reassurance stays visible on every pitch. No always-on usage meters — the
+   account page may show usage, but in-flow surfaces only appear near the cap
+   (CapHint). Look/read/sound preferences live in SettingsModal instead. */
 
 function formatDate(iso: string): string {
   // Date-only strings parse as UTC midnight and can render a day early in
@@ -29,8 +27,9 @@ function formatDate(iso: string): string {
   });
 }
 
-/** Modal chrome shared with the auth dialog: overlay, card, close affordances. */
-function Overlay({
+/** Modal chrome shared with the auth dialog: overlay, card, close
+    affordances. Also used by SettingsModal. */
+export function Overlay({
   onClose,
   labelledBy,
   children,
@@ -144,32 +143,16 @@ function PlusPanel() {
 export function AccountModal({
   user,
   billing,
-  languages,
-  lang,
-  onLangChange,
   onClose,
 }: {
   user: AuthUser;
   billing: BillingSummary | null;
-  /** App-wide reading language, saved to the account (see App.changeLang). */
-  languages: Language[];
-  lang: string;
-  onLangChange: (code: string) => void;
   onClose: () => void;
 }) {
   const tier = billing?.tier ?? "free";
   const usage = billing?.reflections ?? null;
   const [portalBusy, setPortalBusy] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
-  // Narration voices; empty (fetch failed / audio unconfigured) hides the picker.
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [voicePref, setVoicePrefState] = useState(getVoicePref());
-
-  useEffect(() => {
-    fetchVoices()
-      .then(setVoices)
-      .catch(() => {});
-  }, []);
 
   async function portal() {
     if (portalBusy) return;
@@ -224,54 +207,6 @@ export function AccountModal({
                 {usage.used} of {usage.limit} Stoa reflections used this month
               </div>
             )}
-          </>
-        )}
-      </section>
-
-      <section className="acct-section">
-        <div className="pane-caption">Preferences</div>
-        <label className="lang-picker acct-lang">
-          Reading language
-          <select
-            value={lang}
-            onChange={(e) => onLangChange(e.target.value)}
-          >
-            <option value="">English</option>
-            {languages.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.native}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="auth-note acct-note">
-          Passages, breakdowns, and your conversations with the Stoa all
-          follow this language.
-        </p>
-        {voices.length > 0 && (
-          <>
-            <label className="lang-picker acct-lang">
-              Narration voice
-              <select
-                value={voicePref || (voices.find((v) => v.default)?.id ?? "")}
-                onChange={(e) => {
-                  setVoicePref(e.target.value);
-                  setVoicePrefState(e.target.value);
-                }}
-              >
-                {voices.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.id[0].toUpperCase() + v.id.slice(1)} —{" "}
-                    {v.description.toLowerCase()}
-                    {v.default ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="auth-note acct-note">
-              The voice that reads passages and breakdowns aloud, on this
-              device. Takes effect on your next listen.
-            </p>
           </>
         )}
       </section>
