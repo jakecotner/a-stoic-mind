@@ -9,10 +9,11 @@ import {
 import type { ReadingPage, ReadingTarget } from "./types";
 import Reading from "./Reading";
 import Journal from "./Journal";
+import Practice from "./Practice";
 import Sidebar from "./Sidebar";
 import "./App.css";
 
-type View = "reading" | "journal";
+type View = "reading" | "journal" | "practice";
 type AuthMode = "login" | "register";
 type Theme = "light" | "dark";
 
@@ -301,6 +302,7 @@ export default function App() {
                 [
                   ["reading", "Stoic Texts"],
                   ["journal", "Journal"],
+                  ["practice", "Practice"],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -386,6 +388,23 @@ export default function App() {
             A philosophical practice tool, not therapy or medical care. In
             crisis? Call or text 988 (US) or your local emergency services.
           </p>
+        </main>
+      )}
+
+      {view === "practice" && (
+        <main className="view">
+          <Practice
+            user={user}
+            onOpenPassage={(passageId) => {
+              setReadingTarget({ kind: "passage", passageId });
+              setView("reading");
+            }}
+            onOpenNote={(id) => {
+              setOpenNoteId(id);
+              setView("journal");
+            }}
+            onSignIn={() => setAuthOpen("login")}
+          />
         </main>
       )}
       </div>

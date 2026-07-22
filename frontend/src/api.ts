@@ -1,7 +1,10 @@
 import type {
+  CalendarMonth,
   ConversationDetail,
   ConversationSummary,
+  DayDetail,
   Note,
+  PracticePlan,
   ReadingPage,
   Source,
   TocSection,
@@ -177,7 +180,7 @@ export async function logout(): Promise<void> {
 // --- Practice tracking (calendar view). Auth via the session cookie; a 401
 // (signed out) is deliberately ignored — reading is never gated on bookkeeping.
 
-function localDateISO(d = new Date()): string {
+export function localDateISO(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
@@ -194,6 +197,54 @@ export async function trackReads(passageIds: number[]): Promise<void> {
   } catch {
     /* never surface tracking failures */
   }
+}
+
+// Minutes to ADD to UTC for the client's local time (backend convention).
+const tzOffset = () => -new Date().getTimezoneOffset();
+
+export async function fetchCalendarMonth(
+  year: number,
+  month: number,
+): Promise<CalendarMonth> {
+  const resp = await fetch(`/api/calendar/${year}/${month}?tz_offset=${tzOffset()}`);
+  if (!resp.ok) throw new Error(`Could not load calendar (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchCalendarDay(date: string): Promise<DayDetail> {
+  const resp = await fetch(`/api/calendar/day/${date}?tz_offset=${tzOffset()}`);
+  if (!resp.ok) throw new Error(`Could not load day (${resp.status})`);
+  return resp.json();
+}
+
+// --- Practice plan (one per user; null when none has been made)
+
+export async function fetchPlan(): Promise<PracticePlan | null> {
+  const resp = await fetch("/api/plan");
+  if (resp.status === 401) return null;
+  if (!resp.ok) throw new Error(`Could not load plan (${resp.status})`);
+  return resp.json();
+}
+
+export async function savePlan(
+  reminderTime: string,
+  durationMinutes: number,
+): Promise<PracticePlan> {
+  const resp = await fetch("/api/plan", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reminder_time: reminderTime,
+      duration_minutes: durationMinutes,
+    }),
+  });
+  if (!resp.ok) throw new Error(`Could not save plan (${resp.status})`);
+  return resp.json();
+}
+
+export async function deletePlan(): Promise<void> {
+  const resp = await fetch("/api/plan", { method: "DELETE" });
+  if (!resp.ok) throw new Error(`Could not remove plan (${resp.status})`);
 }
 
 // --- Reading

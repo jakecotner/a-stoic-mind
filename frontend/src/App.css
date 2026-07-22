@@ -941,6 +941,328 @@ body {
   padding-top: 0;
 }
 
+/* --- Practice (calendar) --- */
+
+.practice-streak {
+  text-align: center;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.88rem;
+  margin: 0 0 0.4rem;
+}
+
+.practice-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.8rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+
+/* Plan card: the intention above the record. */
+
+.plan-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.4rem;
+}
+
+.plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+
+.plan-head strong {
+  font-weight: normal;
+  font-size: 1.02rem;
+}
+
+.plan-tagline {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0.6rem;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.85rem;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--gold);
+}
+
+.chip-selected {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.plan-time {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.18rem 0.6rem;
+}
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.plan-commit {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 1rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.plan-commit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.plan-remove {
+  color: var(--error);
+}
+
+.plan-strip {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.7rem 0 0.4rem;
+}
+
+.strip-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.strip-filled {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.plan-meta {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+/* Month grid */
+
+.cal-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.cal-nav button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.25rem 0.75rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.cal-nav button:hover {
+  border-color: var(--gold);
+}
+
+.cal-title {
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+}
+
+.cal-week,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-weekday {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  padding: 0.25rem 0;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  padding: 0.4rem 0 0.35rem;
+  cursor: pointer;
+}
+
+.cal-cell:hover {
+  background: var(--card);
+}
+
+.cal-today {
+  border-color: var(--ink-soft);
+}
+
+.cal-selected {
+  background: var(--card);
+  border-color: var(--gold);
+}
+
+.cal-dots {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-wrote {
+  background: var(--gold);
+}
+
+.dot-read {
+  background: var(--ink-soft);
+}
+
+.cal-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  margin-top: 0.6rem;
+}
+
+.cal-legend .cal-dot + * {
+  margin-right: 0.5rem;
+}
+
+/* Day detail */
+
+.day-title {
+  font-weight: normal;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.8rem;
+}
+
+.day-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 0.9rem;
+}
+
+.day-card .pane-caption {
+  margin-bottom: 0.4rem;
+}
+
+.day-passage-text {
+  font-style: italic;
+  margin: 0;
+}
+
+.day-passage-cite {
+  margin-top: 0.5rem;
+  text-align: right;
+  color: var(--gold);
+  font-size: 0.88rem;
+}
+
+.day-passage-cite .auth-link {
+  font-size: 0.82rem;
+  margin-left: 0.6rem;
+}
+
+.day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+}
+
+.day-note {
+  font-size: 0.95rem;
+}
+
+.day-note + .day-note {
+  border-top: 1px solid var(--line);
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+}
+
+.day-note-ref {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+.day-note-text {
+  margin: 0.2rem 0 0.3rem;
+  white-space: pre-wrap;
+}
+
+.day-note .auth-link {
+  font-size: 0.82rem;
+}
+
+.day-empty {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
 /* --- Small screens --- */
 
 /* --- Layout: shared left sidebar + main column --- */
@@ -1122,7 +1444,8 @@ body {
   }
 
   /* Stack back to a single column: passage and thread, then the editor. */
-  .journal-split {
+  .journal-split,
+  .practice-split {
     grid-template-columns: 1fr;
   }
 

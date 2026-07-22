@@ -62,6 +62,41 @@ export interface ConversationDetail {
   }[];
 }
 
+// --- Practice calendar
+
+export interface CalendarDay {
+  date: string; // "YYYY-MM-DD"
+  entries: number;
+  passages_read: number;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  days: CalendarDay[]; // only days with activity
+}
+
+/** A passage in a day's reading history: enough to cite and link. */
+export interface ReadPassageRef {
+  id: number;
+  author: string;
+  work: string;
+  reference: string;
+}
+
+export interface DayDetail {
+  date: string;
+  daily_passage: Source | null;
+  notes: Note[];
+  passages_read: ReadPassageRef[];
+}
+
+export interface PracticePlan {
+  reminder_time: string; // "HH:MM", local wall time
+  duration_minutes: number;
+  updated_at: string;
+}
+
 /** A navigation request for the Reading view (sidebar / journal links). */
 export type ReadingTarget =
   | { kind: "picker" }

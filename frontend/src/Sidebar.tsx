@@ -8,7 +8,7 @@ import type {
   Work,
 } from "./types";
 
-type View = "reading" | "journal";
+type View = "reading" | "journal" | "practice";
 
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -231,7 +231,11 @@ export default function Sidebar({
   }
 
   const title =
-    view === "reading" ? readingPos?.work ?? "Texts" : "Entries";
+    view === "reading"
+      ? readingPos?.work ?? "Texts"
+      : view === "journal"
+        ? "Entries"
+        : "Practice";
 
   return (
     <aside className="sidebar">
@@ -261,6 +265,11 @@ export default function Sidebar({
             openNoteId={openNoteId}
             onOpenNote={onOpenNote}
           />
+        )}
+        {view === "practice" && (
+          <p className="side-hint">
+            The record of your practice — what you read and wrote, day by day.
+          </p>
         )}
       </div>
     </aside>
