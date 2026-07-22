@@ -5,7 +5,7 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,13 +23,24 @@ from app.auth import (
 from app.config import get_settings
 from app.db import SessionLocal, get_db
 from app.models import Conversation, Message, Note, Passage, User
+from app.admin import router as admin_router
+from app.billing import router as billing_router
 from app.conversations import router as conversations_router
 from app.journal import router as journal_router
 from app.practice import router as practice_router
 from app.reading import router as reading_router
 from app.reflection import router as reflection_router, seed_message_content
+from app.translation import LANGUAGES, router as translation_router
 from app.retrieval import search_passages
-from app.schemas import ChatRequest, ConversationOut, PassageOut, UserCreate, UserRead
+from app.usage import enforce_reflection_cap, record_usage
+from app.schemas import (
+    ChatRequest,
+    ConversationOut,
+    LanguageUpdate,
+    PassageOut,
+    UserCreate,
+    UserRead,
+)
 
 logger = logging.getLogger("stoa")
 
@@ -62,7 +73,10 @@ app.include_router(reading_router)
 app.include_router(journal_router)
 app.include_router(practice_router)
 app.include_router(conversations_router)
+app.include_router(admin_router)
+app.include_router(billing_router)
 app.include_router(reflection_router)
+app.include_router(translation_router)
 # Hook points for when email sending is set up (templates in fastapi-users docs):
 # app.include_router(fastapi_users.get_verify_router(UserRead), prefix="/api/auth", tags=["auth"])
 # app.include_router(fastapi_users.get_reset_password_router(), prefix="/api/auth", tags=["auth"])
@@ -71,6 +85,20 @@ app.include_router(reflection_router)
 @app.get("/api/auth/me", response_model=UserRead)
 def me(user: User = Depends(current_active_user)):
     return user
+
+
+@app.put("/api/me/language", status_code=204)
+def set_language(
+    req: LanguageUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+):
+    """Account-level reading language; "" clears back to the published English."""
+    if req.language and req.language not in LANGUAGES:
+        raise HTTPException(422, "Unsupported language code")
+    row = db.get(User, user.id)
+    row.language = req.language or None
+    db.commit()
 
 
 @app.delete("/api/auth/me", status_code=204)
@@ -108,10 +136,14 @@ def health() -> dict:
 @app.post("/api/chat")
 def chat(
     req: ChatRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User | None = Depends(current_user_optional),
 ) -> StreamingResponse:
     settings = get_settings()
+    enforce_reflection_cap(db, user, request)
+    if req.language and req.language not in LANGUAGES:
+        raise HTTPException(422, "Unsupported language code")
 
     if req.conversation_id:
         conversation = db.get(Conversation, req.conversation_id)
@@ -147,7 +179,7 @@ def chat(
                     Message(
                         conversation_id=conversation.id,
                         role="assistant",
-                        content=seed_message_content(seed_passage),
+                        content=seed_message_content(db, seed_passage, req.language),
                     )
                 )
                 db.commit()
@@ -167,6 +199,7 @@ def chat(
     db.commit()
 
     conversation_id = conversation.id
+    user_id = user.id if user else None
     sources = [PassageOut.model_validate(p).model_dump() for p in passages]
 
     def event_stream() -> Iterator[str]:
@@ -176,7 +209,9 @@ def chat(
         chunks: list[str] = []
         final = None
         try:
-            for item in llm.stream_reply(history, req.message, passages):
+            for item in llm.stream_reply(
+                history, req.message, passages, req.language
+            ):
                 if isinstance(item, str):
                     chunks.append(item)
                     yield f"data: {json.dumps(item)}\n\n"
@@ -189,6 +224,8 @@ def chat(
             yield f"event: error\ndata: {json.dumps(detail)}\n\n"
 
         reply = "".join(chunks)
+        if final is not None:
+            record_usage("reflection_turn", final, user_id=user_id)
         if final is not None and final.stop_reason == "refusal":
             note = "I can't help with that request."
             reply = reply or note

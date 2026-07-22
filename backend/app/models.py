@@ -33,6 +33,13 @@ class Passage(Base):
     translator: Mapped[str] = mapped_column(String(200))
     text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    # The passage in its original ancient language, where ingested ("grc" or
+    # "la"); translations are made from this when present, with the English
+    # as a reference. original_source credits the edition (a CC BY-SA
+    # attribution requirement for Perseus texts).
+    original_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    original_source: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class PassageAudio(Base):
@@ -55,6 +62,52 @@ class PassageAudio(Base):
     )
 
 
+class ReflectionAudio(Base):
+    """Narration of a passage's Stoa breakdown. Unlike PassageAudio the source
+    text is not immutable — reflections live in an in-process cache and are
+    regenerated after a restart — so the row remembers the hash of the text it
+    was synthesized from and is replaced when the current reflection differs."""
+
+    __tablename__ = "reflection_audio"
+
+    passage_id: Mapped[int] = mapped_column(
+        ForeignKey("passages.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Reflection language as in app/translation.py; "" = English.
+    language: Mapped[str] = mapped_column(String(35), primary_key=True)
+    voice: Mapped[str] = mapped_column(String(50), primary_key=True)
+    text_hash: Mapped[str] = mapped_column(String(64))
+    media_type: Mapped[str] = mapped_column(String(50))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class PassageTranslation(Base):
+    """LLM translation of a passage into a target language, generated on first
+    request and cached forever (the corpus is immutable, like PassageAudio).
+
+    Currently translated FROM the ingested public-domain English; when the
+    original-language texts are ingested the prompt will translate from the
+    original with the English as a reference. model records which LLM produced
+    the text so a re-translation pass can target stale rows."""
+
+    __tablename__ = "passage_translations"
+
+    passage_id: Mapped[int] = mapped_column(
+        ForeignKey("passages.id", ondelete="CASCADE"), primary_key=True
+    )
+    # BCP-47-style code from the supported list in app/translation.py,
+    # e.g. "es", "zh-Hans".
+    language: Mapped[str] = mapped_column(String(35), primary_key=True)
+    text: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class User(Base):
     """Satisfies the fastapi-users user protocol (see app/auth.py)."""
 
@@ -68,6 +121,13 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "free" | "plus" — flipped by hand (admin endpoint) until Stripe lands
+    # (MONETIZATION.md slice 3).
+    tier: Mapped[str] = mapped_column(String(10), server_default="free")
+    # Reading language: a code from app/translation.py LANGUAGES, or NULL for
+    # the published English. Account-level so it follows the user across
+    # devices; the web client mirrors it in localStorage for signed-out use.
+    language: Mapped[str | None] = mapped_column(String(35), nullable=True)
 
 
 class Note(Base):
@@ -187,3 +247,31 @@ class Message(Base):
     )
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class LlmUsage(Base):
+    """One row per LLM API call, for cost accounting (MONETIZATION.md slice 1)."""
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    # NULL = not attributable to a user: shared artifacts (passage breakdowns,
+    # translations) and anonymous chat.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    kind: Mapped[str] = mapped_column(
+        String(40)
+    )  # "reflection_turn" | "passage_breakdown" | "translation"
+    model: Mapped[str] = mapped_column(String(100))
+    input_tokens: Mapped[int]
+    output_tokens: Mapped[int]
+    cache_creation_input_tokens: Mapped[int] = mapped_column(default=0)
+    cache_read_input_tokens: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

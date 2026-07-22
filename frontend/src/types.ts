@@ -14,10 +14,28 @@ export interface Work {
   passage_count: number;
 }
 
+/** A supported translation target for passage text. */
+export interface Language {
+  code: string;
+  name: string;
+  native: string;
+}
+
+/** A narration voice a listener may choose. */
+export interface Voice {
+  id: string;
+  description: string;
+  default: boolean;
+}
+
 export interface ReadingPassage {
   id: number;
   reference: string;
   text: string;
+  /** The original-language text, where ingested (facing-text display). */
+  original_text: string | null;
+  original_language: string | null;
+  original_source: string | null;
 }
 
 export interface ReadingPage {

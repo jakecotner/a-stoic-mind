@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     chat_effort: str = "medium"
     chat_max_tokens: int = 8192
 
+    # Free-tier monthly Stoa reflection turns (MONETIZATION.md slice 2).
+    # "plus" tier and superusers are uncapped.
+    free_tier_monthly_turns: int = 10
+
     retrieval_top_k: int = 6
     history_max_messages: int = 20
 

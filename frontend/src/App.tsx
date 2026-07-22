@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
+  fetchBillingSummary,
+  fetchLanguages,
   fetchMe,
   login,
   logout,
   register,
+  updateLanguage,
   type AuthUser,
+  type BillingSummary,
 } from "./api";
-import type { ReadingPage, ReadingTarget } from "./types";
+import { AccountModal, UpgradeModal } from "./Account";
+import type { Language, ReadingPage, ReadingTarget } from "./types";
 import Reading from "./Reading";
 import Journal from "./Journal";
 import Practice from "./Practice";
@@ -16,6 +21,8 @@ import "./App.css";
 type View = "reading" | "journal" | "practice";
 type AuthMode = "login" | "register";
 type Theme = "light" | "dark";
+
+const LANG_KEY = "stoa:reading:lang";
 
 function AuthModal({
   mode,
@@ -215,7 +222,59 @@ export default function App() {
     localStorage.setItem("stoa:theme", theme);
   }, [theme]);
   const [authOpen, setAuthOpen] = useState<AuthMode | null>(null);
+  // Reading language, app-wide. localStorage serves signed-out visits; for a
+  // signed-in user the account value is the source of truth (it follows them
+  // across devices), and changes from any surface are written back to it.
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [lang, setLangState] = useState(
+    () => localStorage.getItem(LANG_KEY) ?? "",
+  );
+
+  const changeLang = (code: string) => {
+    setLangState(code);
+    localStorage.setItem(LANG_KEY, code);
+    if (user) updateLanguage(code).catch(() => {});
+  };
+
+  /** On sign-in / session restore: the account's language wins; if the
+      account has none yet, adopt this device's choice into it. */
+  const onUserLoaded = (u: AuthUser | null) => {
+    setUser(u);
+    if (!u) return;
+    if (u.language !== null) {
+      setLangState(u.language);
+      localStorage.setItem(LANG_KEY, u.language);
+    } else {
+      const local = localStorage.getItem(LANG_KEY);
+      if (local) updateLanguage(local).catch(() => {});
+    }
+  };
+  // Plan/usage summary for the signed-in user (null while signed out).
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  // Set when a reflection request hits the free-tier monthly cap (402).
+  const [capHit, setCapHit] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setBilling(null);
+      return;
+    }
+    let cancelled = false;
+    fetchBillingSummary().then((b) => {
+      if (!cancelled) setBilling(b);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // On cap hit, re-sync the summary so the account view shows the spent month.
+  const onCapHit = () => {
+    setCapHit(true);
+    fetchBillingSummary().then(setBilling);
+  };
 
   // Close the menu on outside click or Escape.
   useEffect(() => {
@@ -242,7 +301,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchMe().then(setUser);
+    fetchMe().then(onUserLoaded);
+    // No languages just means the pickers offer English only.
+    fetchLanguages().then(setLanguages).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, []);
 
   return (
@@ -264,6 +326,15 @@ export default function App() {
               {user ? (
                 <>
                   <div className="menu-user">{user.email}</div>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAccountOpen(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Account &amp; plan
+                  </button>
                   <button
                     className="menu-item"
                     onClick={async () => {
@@ -298,22 +369,6 @@ export default function App() {
                 </>
               )}
               <div className="menu-sep" />
-              {(
-                [
-                  ["reading", "Stoic Texts"],
-                  ["journal", "Journal"],
-                  ["practice", "Practice"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  className={view === key ? "menu-item menu-active" : "menu-item"}
-                  onClick={() => goTo(key)}
-                >
-                  {label}
-                </button>
-              ))}
-              <div className="menu-sep" />
               <button
                 className="menu-item"
                 onClick={() =>
@@ -327,8 +382,31 @@ export default function App() {
         </div>
         <div className="appbar-title">
           <h1>A Stoic Mind</h1>
+          <span className="title-sep" aria-hidden="true">
+            |
+          </span>
           <p className="tagline">Ancient practice for present problems</p>
         </div>
+        <span className="title-sep" aria-hidden="true">
+          |
+        </span>
+        <nav className="appbar-nav">
+          {(
+            [
+              ["reading", "Stoic Texts"],
+              ["journal", "Journal"],
+              ["practice", "Practice"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              className={view === key ? "nav-item nav-active" : "nav-item"}
+              onClick={() => goTo(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
       {authOpen && !user && (
@@ -336,7 +414,25 @@ export default function App() {
           mode={authOpen}
           onModeChange={setAuthOpen}
           onClose={() => setAuthOpen(null)}
-          onAuthed={setUser}
+          onAuthed={onUserLoaded}
+        />
+      )}
+
+      {accountOpen && user && (
+        <AccountModal
+          user={user}
+          billing={billing}
+          languages={languages}
+          lang={lang}
+          onLangChange={changeLang}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
+
+      {capHit && (
+        <UpgradeModal
+          limit={billing?.reflections?.limit ?? null}
+          onClose={() => setCapHit(false)}
         />
       )}
 
@@ -366,6 +462,7 @@ export default function App() {
             target={readingTarget}
             onTargetConsumed={() => setReadingTarget(null)}
             onPageChange={setReadingPos}
+            lang={lang}
           />
         </main>
       )}
@@ -374,6 +471,7 @@ export default function App() {
         <main className="view view-wide">
           <Journal
             user={user}
+            lang={lang}
             openNoteId={openNoteId}
             onOpenNote={setOpenNoteId}
             onOpenPassage={(passageId) => {
@@ -383,6 +481,16 @@ export default function App() {
             onMutated={() => setNotesVersion((v) => v + 1)}
             onGoToTexts={() => setView("reading")}
             onSignIn={() => setAuthOpen("login")}
+            capRemaining={
+              billing?.tier === "free" && billing.reflections
+                ? Math.max(
+                    0,
+                    billing.reflections.limit - billing.reflections.used,
+                  )
+                : null
+            }
+            onCapHit={onCapHit}
+            onShowPlans={() => setAccountOpen(true)}
           />
           <p className="disclaimer">
             A philosophical practice tool, not therapy or medical care. In
@@ -392,7 +500,7 @@ export default function App() {
       )}
 
       {view === "practice" && (
-        <main className="view">
+        <main className="view view-wide">
           <Practice
             user={user}
             onOpenPassage={(passageId) => {

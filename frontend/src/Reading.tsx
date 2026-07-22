@@ -6,19 +6,98 @@ import {
   fetchReadingPage,
   fetchWorks,
   streamReflection,
+  streamTranslation,
   trackReads,
   type AuthUser,
 } from "./api";
-import type { Note, ReadingPage, ReadingTarget, Work } from "./types";
+import type {
+  Note,
+  ReadingPage,
+  ReadingPassage,
+  ReadingTarget,
+  Work,
+} from "./types";
 import { PlayButton } from "./audio";
 import { MicButton, useDictation } from "./dictation";
 
 const LAST_WORK_KEY = "stoa:reading:last-work";
+const SHOW_ORIGINAL_KEY = "stoa:reading:show-original";
 const posKey = (work: string) => `stoa:reading:pos:${work}`;
 
+const ORIGINAL_NAMES: Record<string, string> = { grc: "Greek", la: "Latin" };
+const originalName = (p: ReadingPassage) =>
+  ORIGINAL_NAMES[p.original_language ?? ""] ?? "original";
+
+/** The passage text, either the English as ingested or streamed through the
+    server-side translation cache. Mounted with key={passageId:lang} so state
+    resets on page turn and language change. */
+function PassageText({
+  passage,
+  lang,
+  translator,
+}: {
+  passage: ReadingPassage;
+  lang: string;
+  translator?: string;
+}) {
+  const [text, setText] = useState("");
+  const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!lang) return;
+    let cancelled = false;
+    streamTranslation(passage.id, lang, {
+      onDelta: (d) => {
+        if (!cancelled) setText((t) => t + d);
+      },
+      onError: () => {
+        if (!cancelled) setFailed(true);
+      },
+      onDone: () => {
+        if (!cancelled) setDone(true);
+      },
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [passage.id, lang]);
+
+  if (!lang) return <p className="passage-text">{passage.text}</p>;
+  if (failed)
+    return (
+      <>
+        <p className="side-hint">Translation unavailable — showing the English.</p>
+        <p className="passage-text">{passage.text}</p>
+      </>
+    );
+  if (!text) return <div className="thinking">Translating&hellip;</div>;
+  return (
+    <>
+      <p className="passage-text">{text}</p>
+      {done && (
+        <p className="translation-credit">
+          {passage.original_text
+            ? `Translated by the Stoa from the ${originalName(passage)}` +
+              (translator ? `, after the English of ${translator}` : "")
+            : "Translated by the Stoa" +
+              (translator ? ` from the English of ${translator}` : "")}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** On-demand LLM breakdown of the visible passage (cached server-side).
-    Mounted with key={passageId} so state resets on page turn. */
-function PassageBreakdown({ passageId }: { passageId: number }) {
+    Mounted with key={passageId:lang} so state resets on page turn and
+    language change. */
+function PassageBreakdown({
+  passageId,
+  lang,
+}: {
+  passageId: number;
+  lang: string;
+}) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -28,7 +107,7 @@ function PassageBreakdown({ passageId }: { passageId: number }) {
     if (!started) {
       setStarted(true);
       setStreaming(true);
-      streamReflection(passageId, {
+      streamReflection(passageId, lang, {
         onMeta: () => {},
         onDelta: (d) => setText((t) => t + d),
         onError: () => setStreaming(false),
@@ -46,7 +125,19 @@ function PassageBreakdown({ passageId }: { passageId: number }) {
       {open && (
         <div className="daily-breakdown passage-breakdown">
           {text ? (
-            <Markdown>{text}</Markdown>
+            <>
+              {!streaming && (
+                <div className="breakdown-audio">
+                  <PlayButton
+                    src={`/api/reflection/${passageId}/audio${
+                      lang ? `?language=${encodeURIComponent(lang)}` : ""
+                    }`}
+                    title="Listen to the breakdown"
+                  />
+                </div>
+              )}
+              <Markdown>{text}</Markdown>
+            </>
           ) : streaming ? (
             <div className="thinking">Reading the passage&hellip;</div>
           ) : (
@@ -155,6 +246,7 @@ export default function Reading({
   target,
   onTargetConsumed,
   onPageChange,
+  lang,
 }: {
   user: AuthUser | null;
   /** Navigation request from outside (sidebar TOC, journal margin-note link). */
@@ -162,10 +254,16 @@ export default function Reading({
   onTargetConsumed: () => void;
   /** Reports the current page (null = work picker) so the sidebar can follow. */
   onPageChange: (page: ReadingPage | null) => void;
+  /** App-wide reading language ("" = published English), set in the account
+      settings (Account & plan → Preferences). */
+  lang: string;
 }) {
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState<ReadingPage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(
+    () => localStorage.getItem(SHOW_ORIGINAL_KEY) === "1",
+  );
 
   useEffect(() => {
     fetchWorks().then(setWorks).catch((e) => setError(String(e)));
@@ -278,10 +376,44 @@ export default function Reading({
       {passage && (
         <article className="passage-card">
           <div className="source-ref">{passage.reference}</div>
-          <p className="passage-text">{passage.text}</p>
+          {passage.original_text && showOriginal && (
+            <div className="original-block">
+              <p className="passage-text original-text">{passage.original_text}</p>
+              {passage.original_source && (
+                <p className="translation-credit">
+                  {ORIGINAL_NAMES[passage.original_language ?? ""] ?? "Original"}{" "}
+                  text: {passage.original_source}
+                </p>
+              )}
+            </div>
+          )}
+          <PassageText
+            key={`${passage.id}:${lang}`}
+            passage={passage}
+            lang={lang}
+            translator={workMeta?.translator}
+          />
           <div className="passage-actions">
             <PlayButton src={`/api/passages/${passage.id}/audio`} />
-            <PassageBreakdown key={passage.id} passageId={passage.id} />
+            <PassageBreakdown
+              key={`${passage.id}:${lang}`}
+              passageId={passage.id}
+              lang={lang}
+            />
+            {passage.original_text && (
+              <button
+                className="auth-link"
+                onClick={() => {
+                  const next = !showOriginal;
+                  setShowOriginal(next);
+                  localStorage.setItem(SHOW_ORIGINAL_KEY, next ? "1" : "");
+                }}
+              >
+                {showOriginal
+                  ? `Hide the ${originalName(passage)}`
+                  : `Show the ${originalName(passage)}`}
+              </button>
+            )}
           </div>
           <PassageNotes passageId={passage.id} user={user} />
         </article>

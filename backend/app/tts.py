@@ -5,15 +5,36 @@ concatenated — the API caps input at 4096 characters, and browsers play
 concatenated MP3 streams without complaint (duration metadata may be
 approximate, which is fine for straight-through narration).
 """
+import logging
 import re
 
 import httpx
 from fastapi import HTTPException
 
+logger = logging.getLogger(__name__)
+
 from app.config import get_settings
 
 # The API's input cap is 4096 chars; stay under it with headroom.
 MAX_CHUNK = 3800
+
+# Curated narration voices (all valid for the gpt-4o-* speech models). Kept
+# deliberately small: every voice multiplies the worst-case synthesis spend,
+# since audio is cached per (text, voice).
+VOICES: dict[str, str] = {
+    "onyx": "Deep and grounded",
+    "sage": "Calm and clear",
+    "fable": "Warm storyteller",
+    "nova": "Bright and gentle",
+}
+
+
+def resolve_voice(requested: str) -> str:
+    """An explicit request must be a curated voice; empty falls back to the
+    configured default (which an operator may set to any provider voice)."""
+    if requested and requested not in VOICES:
+        raise HTTPException(422, "Unsupported voice")
+    return requested or get_settings().tts_voice
 
 # Only the gpt-4o-* speech models accept style instructions.
 INSTRUCTIONS = (
@@ -21,6 +42,17 @@ INSTRUCTIONS = (
     "voice — unhurried, warm, without theatrics. Pause naturally at sentence "
     "boundaries."
 )
+
+
+def strip_markdown(md: str) -> str:
+    """Reduce light markdown (the reflections' emphasis/quotes) to plain prose
+    for narration — a narrator reading asterisks aloud breaks the spell."""
+    text = re.sub(r"^#{1,6}\s+", "", md, flags=re.M)  # headers
+    text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.M)  # list bullets
+    text = re.sub(r"^\s*>\s?", "", text, flags=re.M)  # blockquote markers
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # links -> label
+    text = re.sub(r"(\*\*|__|\*|_)(?=\S)|(?<=\S)(\*\*|__|\*|_)", "", text)  # emphasis
+    return text.strip()
 
 
 def _chunks(text: str) -> list[str]:
@@ -43,7 +75,7 @@ def _chunks(text: str) -> list[str]:
     return chunks
 
 
-def synthesize(text: str) -> tuple[bytes, str]:
+def synthesize(text: str, voice: str | None = None) -> tuple[bytes, str]:
     """Return (audio_bytes, media_type). Raises HTTPException on failure."""
     settings = get_settings()
     if not settings.openai_api_key:
@@ -53,7 +85,7 @@ def synthesize(text: str) -> tuple[bytes, str]:
     for chunk in _chunks(text):
         body: dict = {
             "model": settings.tts_model,
-            "voice": settings.tts_voice,
+            "voice": voice or settings.tts_voice,
             "input": chunk,
             "response_format": "mp3",
         }
@@ -66,6 +98,11 @@ def synthesize(text: str) -> tuple[bytes, str]:
             timeout=120.0,
         )
         if resp.status_code != 200:
+            # e.g. 401 bad key, 429 insufficient_quota (no billing on the
+            # OpenAI account) — surface the provider's reason in the log.
+            logger.error(
+                "TTS request failed: %s %s", resp.status_code, resp.text[:500]
+            )
             raise HTTPException(502, "Speech synthesis failed")
         parts.append(resp.content)
     return b"".join(parts), "audio/mpeg"

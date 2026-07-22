@@ -3,11 +3,79 @@ import { useEffect, useRef, useState } from "react";
 // One narration playing at a time across the whole app.
 let active: HTMLAudioElement | null = null;
 
+// Narration voice preference, per device ("" = server default). Read at play
+// time, so a change in Account applies to the very next listen everywhere.
+const VOICE_KEY = "stoa:tts-voice";
+
+export const getVoicePref = (): string => localStorage.getItem(VOICE_KEY) ?? "";
+
+export const setVoicePref = (id: string): void => {
+  if (id) localStorage.setItem(VOICE_KEY, id);
+  else localStorage.removeItem(VOICE_KEY);
+};
+
+/** The narration URL with the chosen voice applied. */
+function withVoice(src: string): string {
+  const v = getVoicePref();
+  if (!v) return src;
+  return src + (src.includes("?") ? "&" : "?") + "voice=" + encodeURIComponent(v);
+}
+
 type PlayState = "idle" | "loading" | "playing" | "failed";
 
-/** Listen/stop toggle for a narration URL (passage audio). Self-contained:
-    owns its audio element, silences any other PlayButton when it starts. */
-export function PlayButton({ src }: { src: string }) {
+function SpeakerIcon({ muted }: { muted?: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      {muted ? (
+        <>
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </>
+      ) : (
+        <>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden="true"
+    >
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </svg>
+  );
+}
+
+/** Icon-only listen/stop toggle for a narration URL. Self-contained: owns its
+    audio element, silences any other PlayButton when it starts. */
+export function PlayButton({
+  src,
+  title = "Listen",
+}: {
+  src: string;
+  title?: string;
+}) {
   const [state, setState] = useState<PlayState>("idle");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -33,7 +101,7 @@ export function PlayButton({ src }: { src: string }) {
       setState("idle");
       return;
     }
-    const a = new Audio(src);
+    const a = new Audio(withVoice(src));
     active?.pause();
     active = a;
     audioRef.current = a;
@@ -56,18 +124,28 @@ export function PlayButton({ src }: { src: string }) {
     });
   }
 
-  if (state === "failed") {
-    return (
-      <button className="auth-link play-btn" disabled>
-        Audio unavailable
-      </button>
-    );
-  }
+  const label =
+    state === "failed"
+      ? "Audio unavailable"
+      : state === "playing" || state === "loading"
+        ? "Stop narration"
+        : title;
   return (
-    <button className="auth-link play-btn" onClick={toggle}>
-      {state === "idle" && "▶ Listen"}
-      {state === "loading" && "Loading…"}
-      {state === "playing" && "■ Stop"}
+    <button
+      type="button"
+      className={"play-btn" + (state === "loading" ? " play-loading" : "")}
+      onClick={toggle}
+      disabled={state === "failed"}
+      title={label}
+      aria-label={label}
+    >
+      {state === "failed" ? (
+        <SpeakerIcon muted />
+      ) : state === "idle" ? (
+        <SpeakerIcon />
+      ) : (
+        <StopIcon />
+      )}
     </button>
   );
 }

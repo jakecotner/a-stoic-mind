@@ -8,11 +8,13 @@ import {
   fetchNotes,
   streamChat,
   streamReflection,
+  streamTranslation,
   trackReads,
   updateNote,
   type AuthUser,
 } from "./api";
 import type { ChatMessage, Note, Source } from "./types";
+import { CapHint } from "./Account";
 import { PlayButton } from "./audio";
 import { MicButton, useDictation } from "./dictation";
 
@@ -94,15 +96,25 @@ function DailyQuote({
     thread's first user message, so only what follows it is rendered here. */
 function EntryThread({
   note,
+  lang,
   seedPassageId,
   autoStart,
   onThreadKnown,
+  capRemaining,
+  onCapHit,
+  onShowPlans,
 }: {
   note: Note;
+  /** Reading language ("" = English): the Stoa replies in it. */
+  lang: string;
   /** Passage context baked into a NEW thread (daily prompt or margin note). */
   seedPassageId: number | null;
   autoStart: boolean;
   onThreadKnown: (noteId: string, threadId: string) => void;
+  /** Free reflections left this month; null = unknown / not metered. */
+  capRemaining: number | null;
+  onCapHit: () => void;
+  onShowPlans: () => void;
 }) {
   const [threadId, setThreadId] = useState<string | null>(note.thread_id);
   const [msgs, setMsgs] = useState<ChatMessage[] | null>(null);
@@ -113,6 +125,15 @@ function EntryThread({
 
   const updateLast = (patch: (m: ChatMessage) => ChatMessage) =>
     setMsgs((ms) => ms && [...ms.slice(0, -1), patch(ms[ms.length - 1])]);
+
+  // 402 from /api/chat: note the cap inline and raise the upgrade modal.
+  const capHandler = (info: { message: string | null }) => {
+    updateLast((m) => ({
+      ...m,
+      error: info.message ?? "You've used this month's free reflections.",
+    }));
+    onCapHit();
+  };
 
   const startThread = useCallback(() => {
     if (started.current || threadId) return;
@@ -131,11 +152,13 @@ function EntryThread({
         onDelta: (d) => updateLast((m) => ({ ...m, content: m.content + d })),
         onError: (error) => updateLast((m) => ({ ...m, error })),
         onDone: () => setBusy(false),
+        onCapHit: capHandler,
       },
       seedPassageId ?? undefined,
       note.id,
+      lang,
     ).catch(() => setBusy(false));
-  }, [note, threadId, seedPassageId, onThreadKnown]);
+  }, [note, threadId, seedPassageId, onThreadKnown, lang]);
 
   useEffect(() => {
     if (autoStart) startThread();
@@ -196,12 +219,20 @@ function EntryThread({
       { role: "assistant", content: "" },
     ]);
     try {
-      await streamChat(text, threadId, {
-        onMeta: () => {},
-        onDelta: (d) => updateLast((m) => ({ ...m, content: m.content + d })),
-        onError: (error) => updateLast((m) => ({ ...m, error })),
-        onDone: () => {},
-      });
+      await streamChat(
+        text,
+        threadId,
+        {
+          onMeta: () => {},
+          onDelta: (d) => updateLast((m) => ({ ...m, content: m.content + d })),
+          onError: (error) => updateLast((m) => ({ ...m, error })),
+          onDone: () => {},
+          onCapHit: capHandler,
+        },
+        undefined,
+        undefined,
+        lang,
+      );
     } finally {
       setBusy(false);
     }
@@ -261,6 +292,7 @@ function EntryThread({
               Send
             </button>
           </div>
+          <CapHint remaining={capRemaining} onShowPlans={onShowPlans} />
         </>
       )}
     </div>
@@ -360,14 +392,21 @@ function NoteEntry({
 
 export default function Journal({
   user,
+  lang,
   openNoteId,
   onOpenNote,
   onOpenPassage,
   onMutated,
   onGoToTexts,
   onSignIn,
+  capRemaining,
+  onCapHit,
+  onShowPlans,
 }: {
   user: AuthUser | null;
+  /** App-wide reading language ("" = published English); the daily passage
+      is shown translated when set. */
+  lang: string;
   /** The single past entry shown below the composer (picked in the sidebar
       or just saved); null shows none. */
   openNoteId: string | null;
@@ -377,6 +416,12 @@ export default function Journal({
   onMutated: () => void;
   onGoToTexts: () => void;
   onSignIn: () => void;
+  /** Free reflections left this month; null = unknown / not metered. */
+  capRemaining: number | null;
+  /** A reflection request came back 402 (monthly cap reached). */
+  onCapHit: () => void;
+  /** Open the account/upgrade view (Stoa Plus pitch). */
+  onShowPlans: () => void;
 }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
@@ -392,32 +437,62 @@ export default function Journal({
   const promptToken = useRef(0);
   // Entry that should immediately open its reflection thread after saving.
   const [autoReflectId, setAutoReflectId] = useState<string | null>(null);
+  // Daily passage in the chosen language; swapped in whole once complete
+  // (instant on revisits — the server caches translations forever).
+  const [dailyTranslated, setDailyTranslated] = useState<string | null>(null);
   const dictation = useDictation((t) =>
     setDraft((d) => (d ? d.trimEnd() + " " + t : t)),
   );
 
   useEffect(() => {
-    const token = ++promptToken.current;
-    const fresh = () => promptToken.current === token;
     fetchDaily().then((p) => {
-      if (!p || !fresh()) return;
+      if (!p) return;
       trackReads([p.id]); // the daily passage counts as read
       setPrompt({ passage: p, reflection: "", done: false, error: null });
-      streamReflection(p.id, {
-        onMeta: () => {},
-        onDelta: (d) => {
-          if (fresh())
-            setPrompt((s) => s && { ...s, reflection: s.reflection + d });
-        },
-        onError: (e) => {
-          if (fresh()) setPrompt((s) => s && { ...s, error: e });
-        },
-        onDone: () => {
-          if (fresh()) setPrompt((s) => s && { ...s, done: true });
-        },
-      });
     });
   }, []);
+
+  const dailyId = prompt?.passage.id;
+
+  // The breakdown streams per (passage, language): switching language mid-
+  // session restreams it (instant when the server has it cached).
+  useEffect(() => {
+    if (dailyId == null) return;
+    const token = ++promptToken.current;
+    const fresh = () => promptToken.current === token;
+    setPrompt((s) => s && { ...s, reflection: "", done: false, error: null });
+    streamReflection(dailyId, lang, {
+      onMeta: () => {},
+      onDelta: (d) => {
+        if (fresh())
+          setPrompt((s) => s && { ...s, reflection: s.reflection + d });
+      },
+      onError: (e) => {
+        if (fresh()) setPrompt((s) => s && { ...s, error: e });
+      },
+      onDone: () => {
+        if (fresh()) setPrompt((s) => s && { ...s, done: true });
+      },
+    });
+  }, [dailyId, lang]);
+  useEffect(() => {
+    setDailyTranslated(null);
+    if (!lang || dailyId == null) return;
+    let cancelled = false;
+    let acc = "";
+    streamTranslation(dailyId, lang, {
+      onDelta: (d) => {
+        acc += d;
+      },
+      onError: () => {},
+      onDone: () => {
+        if (!cancelled && acc) setDailyTranslated(acc);
+      },
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dailyId, lang]);
 
   useEffect(() => {
     if (!user) {
@@ -484,11 +559,25 @@ export default function Journal({
           {prompt && (
             <>
               <DailyQuote
-                quote={prompt.passage}
+                quote={
+                  dailyTranslated
+                    ? { ...prompt.passage, text: dailyTranslated }
+                    : prompt.passage
+                }
                 onReadInContext={() => onOpenPassage(prompt.passage.id)}
               />
               {prompt.reflection ? (
                 <div className="daily-breakdown">
+                  {prompt.done && (
+                    <div className="breakdown-audio">
+                      <PlayButton
+                        src={`/api/reflection/${prompt.passage.id}/audio${
+                          lang ? `?language=${encodeURIComponent(lang)}` : ""
+                        }`}
+                        title="Listen to the breakdown"
+                      />
+                    </div>
+                  )}
                   <Markdown>{prompt.reflection}</Markdown>
                 </div>
               ) : prompt.error ? null : (
@@ -503,8 +592,12 @@ export default function Journal({
               <EntryThread
                 key={openNote.id}
                 note={openNote}
+                lang={lang}
                 seedPassageId={seedFor(openNote)}
                 autoStart={openNote.id === autoReflectId}
+                capRemaining={capRemaining}
+                onCapHit={onCapHit}
+                onShowPlans={onShowPlans}
                 onThreadKnown={(noteId, threadId) =>
                   setNotes((ns) =>
                     ns.map((x) =>
@@ -575,6 +668,7 @@ export default function Journal({
                     Just save
                   </button>
                 </div>
+                <CapHint remaining={capRemaining} onShowPlans={onShowPlans} />
               </div>
             )
           ) : (

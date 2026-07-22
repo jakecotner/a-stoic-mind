@@ -10,7 +10,7 @@ import {
 } from "./api";
 import type { CalendarDay, DayDetail, PracticePlan } from "./types";
 
-const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const TIMES = [
   { label: "Morning", value: "06:30" },
@@ -83,10 +83,14 @@ function AdherenceStrip({ activeDates }: { activeDates: Set<string> }) {
   );
 }
 
-function PlanCard({ activeDates }: { activeDates: Set<string> }) {
-  // undefined = loading; null = no plan yet.
+/** The intention: a summary cluster in the header band, or the set/adjust
+    form when there is none (or it's being edited). */
+function PlanBand({ activeDates }: { activeDates: Set<string> }) {
+  // undefined = loading; null = no intention yet.
   const [plan, setPlan] = useState<PracticePlan | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
+  // The set-intention form stays behind a quiet link until asked for.
+  const [formOpen, setFormOpen] = useState(false);
   const [time, setTime] = useState("06:30");
   const [duration, setDuration] = useState(15);
   const [busy, setBusy] = useState(false);
@@ -111,6 +115,7 @@ function PlanCard({ activeDates }: { activeDates: Set<string> }) {
     try {
       setPlan(await savePlan(time, duration));
       setEditing(false);
+      setFormOpen(false);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -143,11 +148,22 @@ function PlanCard({ activeDates }: { activeDates: Set<string> }) {
     d.setDate(d.getDate() - 1);
   }
 
+  if (!plan && !formOpen) {
+    return (
+      <button
+        className="auth-link plan-invite"
+        onClick={() => setFormOpen(true)}
+      >
+        Set an intention
+      </button>
+    );
+  }
+
   if (!plan || editing) {
     return (
-      <section className="plan-card">
+      <div className="plan-form">
         <div className="plan-head">
-          <strong>{plan ? "Adjust your practice" : "Commit to a practice"}</strong>
+          <strong>{plan ? "Adjust your intention" : "Set an intention"}</strong>
         </div>
         <p className="plan-tagline">
           A small promise, kept daily, outweighs a grand one abandoned.
@@ -181,38 +197,44 @@ function PlanCard({ activeDates }: { activeDates: Set<string> }) {
         </div>
         <div className="plan-actions">
           <button className="plan-commit" onClick={commit} disabled={busy}>
-            {plan ? "Save" : "Commit"}
+            {plan ? "Save" : "Set intention"}
           </button>
-          {editing && (
-            <button className="auth-link" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          )}
+          <button
+            className="auth-link"
+            onClick={() => {
+              setEditing(false);
+              setFormOpen(false);
+            }}
+          >
+            Cancel
+          </button>
           {plan && editing && (
-            <button className="auth-link plan-remove" onClick={remove} disabled={busy}>
-              Remove plan
+            <button
+              className="auth-link plan-remove"
+              onClick={remove}
+              disabled={busy}
+            >
+              Remove intention
             </button>
           )}
         </div>
         {error && <p className="msg-error">{error}</p>}
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="plan-card">
-      <div className="plan-head">
-        <strong>
-          {plan.duration_minutes} min at {plan.reminder_time}, daily
-        </strong>
-        <button className="auth-link" onClick={() => setEditing(true)}>
-          Edit
-        </button>
-      </div>
+    <div className="plan-summary">
+      <strong>
+        {plan.duration_minutes} min at {plan.reminder_time}, daily
+      </strong>
       <AdherenceStrip activeDates={activeDates} />
-      <p className="plan-meta">{practiced} of the last 30 days</p>
-      {error && <p className="msg-error">{error}</p>}
-    </section>
+      <span className="plan-meta">{practiced} of the last 30 days</span>
+      <button className="auth-link" onClick={() => setEditing(true)}>
+        Edit
+      </button>
+      {error && <span className="msg-error">{error}</span>}
+    </div>
   );
 }
 
@@ -428,6 +450,8 @@ export default function Practice({
   }
 
   const [year, month] = cursor;
+  const onCurrentMonth =
+    year === now.getFullYear() && month === now.getMonth() + 1;
   // Grid cells: leading blanks for the first weekday, then the month's days.
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -445,35 +469,48 @@ export default function Practice({
   return (
     <div className="practice">
       <h2 className="view-title">Practice</h2>
-      {streak > 0 && (
-        <p className="practice-streak">
-          {streak} day{streak === 1 ? "" : "s"} in a row
-        </p>
-      )}
+
+      {/* One band above the grid: navigation, streak, and the intention. */}
+      <div className="practice-band">
+        <div className="cal-nav">
+          <button
+            aria-label="Previous month"
+            onClick={() => setCursor(([y, m]) => shiftMonth(y, m, -1))}
+          >
+            ‹
+          </button>
+          <span className="cal-title">{monthTitle}</span>
+          <button
+            aria-label="Next month"
+            onClick={() => setCursor(([y, m]) => shiftMonth(y, m, 1))}
+          >
+            ›
+          </button>
+          {!onCurrentMonth && (
+            <button
+              className="cal-today-btn"
+              onClick={() => {
+                setCursor([now.getFullYear(), now.getMonth() + 1]);
+                setSelected(today);
+              }}
+            >
+              Today
+            </button>
+          )}
+        </div>
+        {streak > 0 && (
+          <span className="practice-streak">
+            {streak} day{streak === 1 ? "" : "s"} in a row
+          </span>
+        )}
+        <PlanBand activeDates={activeDates} />
+      </div>
 
       <div className="practice-split">
         <section className="practice-cal" aria-label="Practice calendar">
-          <PlanCard activeDates={activeDates} />
-
-          <div className="cal-nav">
-            <button
-              aria-label="Previous month"
-              onClick={() => setCursor(([y, m]) => shiftMonth(y, m, -1))}
-            >
-              ‹
-            </button>
-            <span className="cal-title">{monthTitle}</span>
-            <button
-              aria-label="Next month"
-              onClick={() => setCursor(([y, m]) => shiftMonth(y, m, 1))}
-            >
-              ›
-            </button>
-          </div>
-
           <div className="cal-week">
-            {WEEKDAYS.map((w, i) => (
-              <span key={i} className="cal-weekday">
+            {WEEKDAYS.map((w) => (
+              <span key={w} className="cal-weekday">
                 {w}
               </span>
             ))}
@@ -481,7 +518,7 @@ export default function Practice({
 
           <div className="cal-grid">
             {cells.map((dateISO, i) => {
-              if (!dateISO) return <span key={i} />;
+              if (!dateISO) return <span key={i} className="cal-blank" />;
               const activity = dayMap[dateISO];
               const classes = ["cal-cell"];
               if (dateISO === today) classes.push("cal-today");
@@ -493,14 +530,31 @@ export default function Practice({
                   onClick={() => setSelected(dateISO)}
                 >
                   <span className="cal-daynum">{Number(dateISO.slice(-2))}</span>
-                  <span className="cal-dots">
-                    {activity && activity.entries > 0 && (
-                      <span className="cal-dot dot-wrote" />
-                    )}
-                    {activity && activity.passages_read > 0 && (
-                      <span className="cal-dot dot-read" />
-                    )}
-                  </span>
+                  {activity && (
+                    <>
+                      {/* Wide: a summary in words. Narrow: the same facts as dots. */}
+                      <span className="cal-sum">
+                        {activity.entries > 0 && (
+                          <span className="sum-wrote">
+                            {activity.entries} written
+                          </span>
+                        )}
+                        {activity.passages_read > 0 && (
+                          <span className="sum-read">
+                            {activity.passages_read} read
+                          </span>
+                        )}
+                      </span>
+                      <span className="cal-dots">
+                        {activity.entries > 0 && (
+                          <span className="cal-dot dot-wrote" />
+                        )}
+                        {activity.passages_read > 0 && (
+                          <span className="cal-dot dot-read" />
+                        )}
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
@@ -514,7 +568,7 @@ export default function Practice({
           {error && <p className="msg-error">{error}</p>}
         </section>
 
-        <section className="practice-detail" aria-label="Day detail">
+        <aside className="practice-detail" aria-label="Day detail">
           <DayDetailPanel
             date={selected}
             detail={detail}
@@ -522,7 +576,7 @@ export default function Practice({
             onOpenPassage={onOpenPassage}
             onOpenNote={onOpenNote}
           />
-        </section>
+        </aside>
       </div>
     </div>
   );

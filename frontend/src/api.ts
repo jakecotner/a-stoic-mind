@@ -3,11 +3,13 @@ import type {
   ConversationDetail,
   ConversationSummary,
   DayDetail,
+  Language,
   Note,
   PracticePlan,
   ReadingPage,
   Source,
   TocSection,
+  Voice,
   Work,
 } from "./types";
 
@@ -16,6 +18,35 @@ export interface StreamHandlers {
   onDelta: (text: string) => void;
   onError: (message: string) => void;
   onDone: () => void;
+  /** Free-tier monthly reflection cap reached (HTTP 402). Optional; without
+      it the cap surfaces through onError as plain text. */
+  onCapHit?: (info: CapInfo) => void;
+}
+
+/** Payload of a 402 from /api/chat (see MONETIZATION.md §5 slice 2). */
+export interface CapInfo {
+  used: number | null;
+  limit: number | null;
+  message: string | null;
+  /** "user" (signed-in monthly cap) or "anonymous" (per-IP taste allowance). */
+  scope: string | null;
+}
+
+async function parseCapInfo(resp: Response): Promise<CapInfo> {
+  const info: CapInfo = { used: null, limit: null, message: null, scope: null };
+  try {
+    const detail = (await resp.json()).detail;
+    if (typeof detail === "string") info.message = detail;
+    else if (detail) {
+      info.used = detail.used ?? null;
+      info.limit = detail.limit ?? null;
+      info.message = detail.message ?? null;
+      info.scope = detail.scope ?? null;
+    }
+  } catch {
+    /* no payload; the caller falls back to generic copy */
+  }
+  return info;
 }
 
 /** Consume an SSE response body, dispatching events to handlers. */
@@ -67,6 +98,7 @@ export async function streamChat(
   handlers: StreamHandlers,
   seedPassageId?: number | null,
   noteId?: string | null,
+  language?: string,
 ): Promise<void> {
   const resp = await fetch("/api/chat", {
     method: "POST",
@@ -76,8 +108,19 @@ export async function streamChat(
       conversation_id: conversationId ?? undefined,
       seed_passage_id: seedPassageId ?? undefined,
       note_id: noteId ?? undefined,
+      language: language || undefined,
     }),
   });
+  if (resp.status === 402) {
+    const info = await parseCapInfo(resp);
+    if (handlers.onCapHit) handlers.onCapHit(info);
+    else
+      handlers.onError(
+        info.message ?? "You've used this month's free reflections.",
+      );
+    handlers.onDone();
+    return;
+  }
   if (!resp.ok || !resp.body) {
     handlers.onError(`Request failed (${resp.status})`);
     handlers.onDone();
@@ -91,9 +134,10 @@ export async function streamChat(
   });
 }
 
-/** Stream the (cached) reflection for a passage. */
+/** Stream the (cached) reflection for a passage, in the reading language. */
 export async function streamReflection(
   passageId: number,
+  language: string,
   handlers: {
     onMeta: (passage: Source) => void;
     onDelta: (text: string) => void;
@@ -101,7 +145,8 @@ export async function streamReflection(
     onDone: () => void;
   },
 ): Promise<void> {
-  const resp = await fetch(`/api/reflection/${passageId}`);
+  const query = language ? `?language=${encodeURIComponent(language)}` : "";
+  const resp = await fetch(`/api/reflection/${passageId}${query}`);
   if (!resp.ok || !resp.body) {
     handlers.onError(`Request failed (${resp.status})`);
     handlers.onDone();
@@ -133,6 +178,17 @@ export async function fetchDaily(): Promise<Source | null> {
 export interface AuthUser {
   id: string;
   email: string;
+  /** Account-level reading language; null = the published English. */
+  language: string | null;
+}
+
+/** Persist the account-level reading language ("" clears it). */
+export async function updateLanguage(language: string): Promise<void> {
+  await fetch("/api/me/language", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language }),
+  });
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
@@ -270,6 +326,43 @@ export async function fetchReadingPage(
   return resp.json();
 }
 
+export async function fetchLanguages(): Promise<Language[]> {
+  const resp = await fetch("/api/translation/languages");
+  if (!resp.ok) throw new Error(`Could not load languages (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchVoices(): Promise<Voice[]> {
+  const resp = await fetch("/api/tts/voices");
+  if (!resp.ok) throw new Error(`Could not load voices (${resp.status})`);
+  return resp.json();
+}
+
+/** Stream the (cached) translation of a passage into a target language. */
+export async function streamTranslation(
+  passageId: number,
+  language: string,
+  handlers: {
+    onDelta: (text: string) => void;
+    onError: (message: string) => void;
+    onDone: () => void;
+  },
+): Promise<void> {
+  const resp = await fetch(
+    `/api/passages/${passageId}/translation?language=${encodeURIComponent(language)}`,
+  );
+  if (!resp.ok || !resp.body) {
+    handlers.onError(`Request failed (${resp.status})`);
+    handlers.onDone();
+    return;
+  }
+  await consumeSse(resp, {
+    delta: handlers.onDelta,
+    error: handlers.onError,
+    done: handlers.onDone,
+  });
+}
+
 export async function fetchToc(work: string): Promise<TocSection[]> {
   const resp = await fetch(`/api/reading/toc?work=${encodeURIComponent(work)}`);
   if (!resp.ok) throw new Error(`Could not load contents (${resp.status})`);
@@ -330,4 +423,71 @@ export async function updateNote(id: string, content: string): Promise<Note> {
 export async function deleteNote(id: string): Promise<void> {
   const resp = await fetch(`/api/notes/${id}`, { method: "DELETE" });
   if (!resp.ok) throw new Error(`Could not delete note (${resp.status})`);
+}
+
+// --- Billing / Stoa Plus (MONETIZATION.md §5). The UI ships ahead of the
+// backend slices, so every call here degrades gracefully while the endpoints
+// don't exist yet: summary falls back to a bare free tier, checkout/portal
+// throw a readable "not live yet" message.
+
+export type Tier = "free" | "plus";
+export type BillingPlan = "annual" | "monthly";
+
+export interface BillingSummary {
+  tier: Tier;
+  /** Monthly reflection usage (free tier); null until the backend meters it. */
+  reflections: { used: number; limit: number } | null;
+  /** Next renewal date (ISO) for Plus, when known. */
+  renews_at: string | null;
+  /** Plus subscription cancelled but paid through renews_at. */
+  cancel_at_period_end?: boolean;
+}
+
+const FREE_FALLBACK: BillingSummary = {
+  tier: "free",
+  reflections: null,
+  renews_at: null,
+};
+
+/** null = signed out; a bare free summary when the endpoint isn't live. */
+export async function fetchBillingSummary(): Promise<BillingSummary | null> {
+  try {
+    const resp = await fetch("/api/billing/summary");
+    if (resp.status === 401) return null;
+    if (!resp.ok) return FREE_FALLBACK;
+    return await resp.json();
+  } catch {
+    return FREE_FALLBACK;
+  }
+}
+
+/** Begin Stripe Checkout; resolves by navigating away. Throws if unavailable. */
+export async function startCheckout(plan: BillingPlan): Promise<void> {
+  let resp: Response;
+  try {
+    resp = await fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+    });
+  } catch {
+    throw new Error("Could not reach the server — try again in a moment.");
+  }
+  if (!resp.ok)
+    throw new Error("Payments aren't quite live yet — check back soon.");
+  const { url } = await resp.json();
+  window.location.href = url;
+}
+
+/** Open the Stripe customer portal (Plus users manage/cancel there). */
+export async function openBillingPortal(): Promise<void> {
+  let resp: Response;
+  try {
+    resp = await fetch("/api/billing/portal", { method: "POST" });
+  } catch {
+    throw new Error("Could not reach the server — try again in a moment.");
+  }
+  if (!resp.ok) throw new Error("The billing portal isn't available yet.");
+  const { url } = await resp.json();
+  window.location.href = url;
 }

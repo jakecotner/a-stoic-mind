@@ -6,7 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserRead(fastapi_users_schemas.BaseUser[uuid.UUID]):
-    pass
+    # Account-level reading language; None = the published English.
+    language: str | None = None
+
+
+class LanguageUpdate(BaseModel):
+    """PUT /api/me/language body; "" clears back to the published English."""
+
+    language: str = Field(default="", max_length=35)
 
 
 class UserCreate(fastapi_users_schemas.BaseUserCreate):
@@ -20,6 +27,9 @@ class UserUpdate(fastapi_users_schemas.BaseUserUpdate):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     conversation_id: uuid.UUID | None = None
+    # Reader's language ("" = English): the reply and any seeded passage
+    # quote are written in it.
+    language: str = Field(default="", max_length=35)
     # For a NEW conversation: seed it with the passage + reflection the user
     # was shown (the daily prompt), so history stays coherent.
     seed_passage_id: int | None = None
@@ -37,6 +47,22 @@ class PassageOut(BaseModel):
     reference: str
     translator: str
     text: str
+
+
+class LanguageOut(BaseModel):
+    """A supported translation target: code plus English and native names."""
+
+    code: str
+    name: str
+    native: str
+
+
+class VoiceOut(BaseModel):
+    """A narration voice a listener may choose."""
+
+    id: str
+    description: str
+    default: bool
 
 
 class WorkOut(BaseModel):
@@ -73,6 +99,10 @@ class ReadingPassageOut(BaseModel):
     id: int
     reference: str
     text: str
+    # The original-language text, where ingested (facing-text display).
+    original_text: str | None = None
+    original_language: str | None = None
+    original_source: str | None = None
 
 
 class ReadingPageOut(BaseModel):

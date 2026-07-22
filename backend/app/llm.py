@@ -11,6 +11,7 @@ import anthropic
 
 from app.config import get_settings
 from app.models import Message, Passage
+from app.translation import LANGUAGES
 
 SYSTEM_PROMPT = """\
 You are the companion behind "A Stoic Mind", a reflective practice grounded in \
@@ -65,19 +66,34 @@ def _format_passages(passages: list[Passage]) -> str:
 
 
 def stream_reply(
-    history: list[Message], user_message: str, passages: list[Passage]
+    history: list[Message],
+    user_message: str,
+    passages: list[Passage],
+    language: str = "",
 ) -> Iterator[str | anthropic.types.Message]:
-    """Yield text deltas, then the final anthropic Message object last."""
+    """Yield text deltas, then the final anthropic Message object last.
+
+    language is the reader's reading language ("" = English). It rides in the
+    user turn, not the system prompt — the system prompt must stay byte-stable
+    for its cache_control breakpoint.
+    """
     settings = get_settings()
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
+    lang_note = (
+        f"<respond_in>Respond entirely in {LANGUAGES[language][0]}. "
+        "Retrieved passages are in English; translate any passage text you "
+        "quote into that language, keeping citations as given.</respond_in>\n"
+        if language and language in LANGUAGES
+        else ""
+    )
     messages: list[dict] = [
         {"role": m.role, "content": m.content} for m in history
     ]
     messages.append(
         {
             "role": "user",
-            "content": f"{_format_passages(passages)}\n\n{user_message}",
+            "content": f"{_format_passages(passages)}\n{lang_note}\n{user_message}",
         }
     )
 
