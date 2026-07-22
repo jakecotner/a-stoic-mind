@@ -57,7 +57,8 @@ def reading_toc(work: str, db: Session = Depends(get_db)):
 
     if "Letters" in work:
         prefix = "Letter"
-    elif work == "Meditations":
+    elif work in ("Meditations", "Discourses", "Of Anger", "Of Clemency",
+                  "On Benefits"):
         prefix = "Book"
     else:
         prefix = "Chapter"
