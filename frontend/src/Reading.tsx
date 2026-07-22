@@ -2,15 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import {
   createNote,
+  fetchConversation,
   fetchNotes,
+  fetchPassageThread,
+  fetchRelatedNotes,
   fetchReadingPage,
   fetchWorks,
+  streamChat,
   streamReflection,
   streamTranslation,
   trackReads,
   type AuthUser,
 } from "./api";
 import type {
+  ChatMessage,
   Note,
   ReadingPage,
   ReadingPassage,
@@ -19,6 +24,7 @@ import type {
 } from "./types";
 import { PlayButton } from "./audio";
 import { MicButton, useDictation } from "./dictation";
+import { MessageView } from "./Journal";
 
 const LAST_WORK_KEY = "stoa:reading:last-work";
 const SHOW_ORIGINAL_KEY = "stoa:reading:show-original";
@@ -241,12 +247,236 @@ function PassageNotes({ passageId, user }: { passageId: number; user: AuthUser |
   );
 }
 
+const snippet = (text: string, max = 150) =>
+  text.length > max ? text.slice(0, max).trimEnd() + "…" : text;
+
+/** Cross-link (Stoa Plus): the reader's own journal entries that speak to
+    the visible passage. Silent when there are none — a suggestion, not a
+    section. Mounted with key={passageId} so results reset on page turn. */
+function FromYourJournal({
+  passageId,
+  isPlus,
+  onOpenNote,
+}: {
+  passageId: number;
+  isPlus: boolean;
+  onOpenNote: (noteId: string) => void;
+}) {
+  const [notes, setNotes] = useState<Note[]>([]);
+
+  useEffect(() => {
+    if (!isPlus) return;
+    let cancelled = false;
+    fetchRelatedNotes(passageId).then((ns) => {
+      if (!cancelled) setNotes(ns);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [passageId, isPlus]);
+
+  if (notes.length === 0) return null;
+  return (
+    <div className="related-block">
+      <div className="pane-caption">From your journal</div>
+      {notes.map((n) => (
+        <button
+          key={n.id}
+          className="related-item"
+          onClick={() => onOpenNote(n.id)}
+        >
+          <span className="related-ref">
+            {new Date(n.created_at).toLocaleDateString(undefined, {
+              month: "long",
+              day: "numeric",
+            })}
+            {n.passage ? ` · on ${n.passage.reference}` : ""}
+          </span>
+          <span className="related-snippet">{snippet(n.content)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A discussion thread anchored to the visible passage (Stoa Plus).
+    Mounted with key={passageId} so all state resets on page turn. The thread
+    is seeded server-side with the passage + its breakdown, so the Stoa's
+    replies stay grounded in what's on screen. */
+function PassageDiscussion({
+  passageId,
+  user,
+  lang,
+  isPlus,
+  onShowPlans,
+}: {
+  passageId: number;
+  user: AuthUser | null;
+  lang: string;
+  isPlus: boolean;
+  onShowPlans: () => void;
+}) {
+  // undefined = still checking whether a thread exists.
+  const [threadId, setThreadId] = useState<string | null | undefined>(undefined);
+  const [open, setOpen] = useState(false);
+  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState("");
+  const dictation = useDictation((t) =>
+    setDraft((d) => (d ? d.trimEnd() + " " + t : t)),
+  );
+
+  useEffect(() => {
+    if (!user || !isPlus) {
+      setThreadId(null);
+      return;
+    }
+    let cancelled = false;
+    fetchPassageThread(passageId).then((id) => {
+      if (!cancelled) setThreadId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [passageId, user, isPlus]);
+
+  const updateLast = (patch: (m: ChatMessage) => ChatMessage) =>
+    setMsgs((ms) => [...ms.slice(0, -1), patch(ms[ms.length - 1])]);
+
+  async function openExisting() {
+    setOpen(true);
+    if (msgs.length > 0 || !threadId) return;
+    const c = await fetchConversation(threadId);
+    if (!c) return;
+    let ms: ChatMessage[] = c.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    // Hide the seed (the passage quote + breakdown) — it's already on screen.
+    if (ms[0]?.role === "assistant" && ms[0].content.startsWith("> ")) {
+      ms = ms.slice(1);
+    }
+    setMsgs(ms);
+  }
+
+  async function send() {
+    const text = draft.trim();
+    if (!text || busy) return;
+    dictation.stop();
+    setDraft("");
+    setBusy(true);
+    const starting = !threadId;
+    setMsgs((ms) => [
+      ...ms,
+      { role: "user", content: text },
+      { role: "assistant", content: "" },
+    ]);
+    try {
+      await streamChat(
+        text,
+        threadId ?? null,
+        {
+          onMeta: (meta) => setThreadId(meta.conversation_id),
+          onDelta: (d) => updateLast((m) => ({ ...m, content: m.content + d })),
+          onError: (error) => updateLast((m) => ({ ...m, error })),
+          onDone: () => {},
+          onCapHit: (info) =>
+            updateLast((m) => ({
+              ...m,
+              error: info.message ?? "This needs Stoa Plus.",
+            })),
+        },
+        undefined,
+        undefined,
+        lang,
+        starting ? passageId : undefined,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!user) return null;
+
+  if (!isPlus) {
+    return (
+      <div className="passage-discussion">
+        <button className="auth-link" onClick={onShowPlans}>
+          Discuss with the Stoa — a Stoa Plus feature
+        </button>
+      </div>
+    );
+  }
+  if (threadId === undefined) return null;
+
+  if (!open) {
+    return (
+      <div className="passage-discussion">
+        <button
+          className="auth-link"
+          onClick={() => (threadId ? openExisting() : setOpen(true))}
+        >
+          {threadId ? "Continue the discussion" : "Discuss with the Stoa"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="passage-discussion">
+      <button
+        className="auth-link entry-thread-toggle"
+        onClick={() => setOpen(false)}
+      >
+        Hide discussion
+      </button>
+      {msgs.map((m, i) => (
+        <MessageView key={i} message={m} />
+      ))}
+      {busy && msgs[msgs.length - 1]?.content === "" && (
+        <div className="thinking">Consulting the Stoics&hellip;</div>
+      )}
+      {dictation.interim && (
+        <div className="dictation-interim">{dictation.interim}…</div>
+      )}
+      <div className="thread-composer">
+        <textarea
+          rows={2}
+          value={draft}
+          placeholder={
+            dictation.listening
+              ? "Listening…"
+              : msgs.length === 0
+                ? "What does this passage stir up?"
+                : "Continue the discussion…"
+          }
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          disabled={busy}
+        />
+        <MicButton dictation={dictation} />
+        <button onClick={send} disabled={busy || !draft.trim()}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Reading({
   user,
   target,
   onTargetConsumed,
   onPageChange,
   lang,
+  isPlus,
+  onShowPlans,
+  onOpenNote,
 }: {
   user: AuthUser | null;
   /** Navigation request from outside (sidebar TOC, journal margin-note link). */
@@ -257,6 +487,12 @@ export default function Reading({
   /** App-wide reading language ("" = published English), set in the account
       settings (Account & plan → Preferences). */
   lang: string;
+  /** Uncapped account (Plus or superuser): passage discussions available. */
+  isPlus: boolean;
+  /** Open the account/upgrade view (Stoa Plus pitch). */
+  onShowPlans: () => void;
+  /** Open a journal entry (cross-links from a passage to the journal). */
+  onOpenNote: (noteId: string) => void;
 }) {
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState<ReadingPage | null>(null);
@@ -416,6 +652,20 @@ export default function Reading({
             )}
           </div>
           <PassageNotes passageId={passage.id} user={user} />
+          <FromYourJournal
+            key={`related:${passage.id}`}
+            passageId={passage.id}
+            isPlus={isPlus}
+            onOpenNote={onOpenNote}
+          />
+          <PassageDiscussion
+            key={`discuss:${passage.id}`}
+            passageId={passage.id}
+            user={user}
+            lang={lang}
+            isPlus={isPlus}
+            onShowPlans={onShowPlans}
+          />
         </article>
       )}
       <div className="pager">

@@ -272,6 +272,36 @@ export default function App() {
     };
   }, [user]);
 
+  // Returning from Stripe Checkout (?checkout=success): the webhook that
+  // flips the tier can lag the redirect by a few seconds, so poll the summary
+  // briefly until Plus appears. ?checkout=cancelled just cleans the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("checkout");
+    if (!outcome) return;
+    params.delete("checkout");
+    const rest = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (rest ? `?${rest}` : ""),
+    );
+    if (outcome !== "success") return;
+    let cancelled = false;
+    let tries = 0;
+    const poll = () => {
+      fetchBillingSummary().then((b) => {
+        if (cancelled) return;
+        if (b) setBilling(b);
+        if (b?.tier !== "plus" && ++tries < 8) setTimeout(poll, 1500);
+      });
+    };
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // On cap hit, re-sync the summary so the account view shows the spent month.
   const onCapHit = () => {
     setCapHit(true);
@@ -474,6 +504,12 @@ export default function App() {
             onTargetConsumed={() => setReadingTarget(null)}
             onPageChange={setReadingPos}
             lang={lang}
+            isPlus={billing !== null && billing.reflections === null}
+            onShowPlans={() => setAccountOpen(true)}
+            onOpenNote={(id) => {
+              setOpenNoteId(id);
+              setView("journal");
+            }}
           />
         </main>
       )}
@@ -502,6 +538,7 @@ export default function App() {
             }
             onCapHit={onCapHit}
             onShowPlans={() => setAccountOpen(true)}
+            isPlus={billing !== null && billing.reflections === null}
           />
           <p className="disclaimer">
             A philosophical practice tool, not therapy or medical care. In

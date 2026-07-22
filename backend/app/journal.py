@@ -3,6 +3,7 @@ NULL) share one model. Everything requires auth and is scoped to the current
 user — a note that exists but belongs to someone else 404s, so note ids are
 never confirmed to exist.
 """
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,11 +11,26 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import current_active_user
+from app.config import get_settings
 from app.db import get_db
 from app.models import Conversation, Note, Passage, User
+from app.retrieval import embed_texts
 from app.schemas import NoteCreate, NoteOut, NoteUpdate
 
+logger = logging.getLogger("stoa")
+
 router = APIRouter(prefix="/api/notes", tags=["journal"])
+
+
+def _embed_note(note: Note) -> None:
+    """Best-effort embedding for cross-links (app/related.py). Failures just
+    leave embedding NULL — the related-notes lookup backfills lazily."""
+    if not get_settings().voyage_api_key:
+        return
+    try:
+        note.embedding = embed_texts([note.content], input_type="document")[0]
+    except Exception:
+        logger.exception("note embedding failed")
 
 
 def _stamp_thread_ids(db: Session, notes: list[Note]) -> None:
@@ -52,6 +68,7 @@ def create_note(
     if body.passage_id is not None and db.get(Passage, body.passage_id) is None:
         raise HTTPException(404, "Passage not found")
     note = Note(user_id=user.id, passage_id=body.passage_id, content=body.content)
+    _embed_note(note)
     db.add(note)
     db.commit()
     db.refresh(note)
@@ -88,6 +105,7 @@ def update_note(
 ):
     note = _own_note(note_id, db, user)
     note.content = body.content
+    _embed_note(note)
     db.commit()
     db.refresh(note)
     _stamp_thread_ids(db, [note])

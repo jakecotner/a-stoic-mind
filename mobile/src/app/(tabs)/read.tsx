@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -11,7 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MarkdownLite } from '@/components/markdown-lite';
+import { PassageDiscussion } from '@/components/passage-discussion';
 import { PlayButton } from '@/components/play-button';
+import { FromYourJournal } from '@/components/related-links';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -201,6 +204,9 @@ function PassageNotes({ passageId }: { passageId: number }) {
 
 export default function ReadScreen() {
   const theme = useTheme();
+  // Passage id handed over by a journal cross-link ("passages that speak
+  // to this").
+  const params = useLocalSearchParams<{ passage?: string }>();
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState<ReadingPage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -217,21 +223,42 @@ export default function ReadScreen() {
     loadLast().then(setLast);
   }, []);
 
-  const openPage = useCallback((params: { work: string; offset: number }) => {
-    setLoading(true);
-    setError(null);
-    fetchReadingPage(params, 1)
-      .then((p) => {
-        setPage(p);
-        setTocOpen(false);
-        trackReads(p.passages.map((x) => x.id));
-        savePosition(p.work, p.offset);
-        setLast({ work: p.work, offset: p.offset });
-        scrollRef.current?.scrollTo({ y: 0, animated: false });
-      })
-      .catch(() => setError('Could not load the passage.'))
-      .finally(() => setLoading(false));
-  }, []);
+  const openPage = useCallback(
+    (params: { work: string; offset: number } | { passageId: number }) => {
+      setLoading(true);
+      setError(null);
+      fetchReadingPage(params, 1)
+        .then((p) => {
+          setPage(p);
+          setTocOpen(false);
+          trackReads(p.passages.map((x) => x.id));
+          savePosition(p.work, p.offset);
+          setLast({ work: p.work, offset: p.offset });
+          scrollRef.current?.scrollTo({ y: 0, animated: false });
+        })
+        .catch(() => setError('Could not load the passage.'))
+        .finally(() => setLoading(false));
+    },
+    [],
+  );
+
+  // Navigate to a cross-linked passage when the tab is (re)entered with one.
+  // Deferred a tick: openPage sets loading state, which must not happen
+  // synchronously inside the effect body.
+  const handledPassage = useRef<string | null>(null);
+  useEffect(() => {
+    if (!params.passage || handledPassage.current === params.passage) return;
+    handledPassage.current = params.passage;
+    const id = Number(params.passage);
+    if (!Number.isFinite(id)) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) openPage({ passageId: id });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [params.passage, openPage]);
 
   const openToc = useCallback(() => {
     if (!page) return;
@@ -344,6 +371,8 @@ export default function ReadScreen() {
                   <PlayButton src={`${API_BASE}/api/passages/${passage.id}/audio`} />
                   <PassageBreakdown key={`b${passage.id}`} passageId={passage.id} />
                   <PassageNotes key={`n${passage.id}`} passageId={passage.id} />
+                  <FromYourJournal key={`r${passage.id}`} passageId={passage.id} />
+                  <PassageDiscussion key={`d${passage.id}`} passageId={passage.id} />
                 </>
               )}
               {error && <ThemedText themeColor="textSecondary">{error}</ThemedText>}

@@ -9,6 +9,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { API_BASE } from "./config";
 import { clearToken, getToken, setToken } from "./token";
 import type {
+  BillingSummary,
   CalendarMonth,
   ConversationDetail,
   ConversationSummary,
@@ -17,6 +18,7 @@ import type {
   PracticePlan,
   ReadingPage,
   Source,
+  SynthesisMeta,
   TocSection,
   Work,
 } from "./types";
@@ -41,6 +43,22 @@ export interface StreamHandlers {
   onDelta: (text: string) => void;
   onError: (message: string) => void;
   onDone: () => void;
+}
+
+/** Readable message from a 402 (reflection cap / Plus-only feature). No
+    upgrade path is offered in-app — App Store rules bar steering to external
+    purchase, so the copy stands alone. */
+async function paymentRequiredMessage(resp: FetchResponse): Promise<string> {
+  try {
+    const detail = (await resp.json()).detail;
+    if (detail?.message) return detail.message;
+    if (detail?.code === "plus_required") return "This is part of Stoa Plus.";
+    if (detail?.limit != null)
+      return `You've used this month's ${detail.limit} free reflections — they return at the start of next month.`;
+  } catch {
+    /* no payload */
+  }
+  return "You've used this month's free reflections — they return at the start of next month.";
 }
 
 /** Consume an SSE response body, dispatching events to handlers. */
@@ -90,7 +108,12 @@ export async function streamChat(
   message: string,
   conversationId: string | null,
   handlers: StreamHandlers,
-  opts: { seedPassageId?: number | null; noteId?: string | null } = {},
+  opts: {
+    seedPassageId?: number | null;
+    noteId?: string | null;
+    /** Anchor a NEW conversation to this passage (Stoa Plus). */
+    passageId?: number | null;
+  } = {},
 ): Promise<void> {
   const resp = await apiFetch("/api/chat", {
     method: "POST",
@@ -100,8 +123,14 @@ export async function streamChat(
       conversation_id: conversationId ?? undefined,
       seed_passage_id: opts.seedPassageId ?? undefined,
       note_id: opts.noteId ?? undefined,
+      passage_id: opts.passageId ?? undefined,
     }),
   });
+  if (resp.status === 402) {
+    handlers.onError(await paymentRequiredMessage(resp));
+    handlers.onDone();
+    return;
+  }
   if (!resp.ok || !resp.body) {
     handlers.onError(`Request failed (${resp.status})`);
     handlers.onDone();
@@ -143,6 +172,107 @@ export async function fetchPassage(id: number): Promise<Source | null> {
   const resp = await apiFetch(`/api/passages/${id}`);
   if (!resp.ok) return null;
   return resp.json();
+}
+
+// --- Billing / Stoa Plus. Mobile is read-only about the plan: purchase and
+// management live on the web (App Store rules for digital goods), so the app
+// only needs to know the tier to show or hide Plus features.
+
+/** null = signed out; a bare free summary when the endpoint isn't live. */
+export async function fetchBillingSummary(): Promise<BillingSummary | null> {
+  try {
+    const resp = await apiFetch("/api/billing/summary");
+    if (resp.status === 401) return null;
+    if (!resp.ok) return { tier: "free", reflections: null, renews_at: null };
+    return await resp.json();
+  } catch {
+    return { tier: "free", reflections: null, renews_at: null };
+  }
+}
+
+// --- Weekly synthesis (Stoa Plus)
+
+/** Stream the week's synthesis. peek never generates: it replays a stored
+    synthesis or reports exists=false, so it's safe to call on load. */
+export async function streamSynthesis(
+  weekStart: string,
+  opts: { refresh?: boolean; peek?: boolean },
+  handlers: {
+    onMeta: (meta: SynthesisMeta) => void;
+    onDelta: (text: string) => void;
+    onError: (message: string) => void;
+    onDone: () => void;
+  },
+): Promise<void> {
+  const params = new URLSearchParams({
+    week_start: weekStart,
+    // The server wants JS getTimezoneOffset semantics (minutes to ADD to
+    // local to reach UTC) — the opposite sign of the calendar endpoints'
+    // tz_offset helper below.
+    tz_offset: String(new Date().getTimezoneOffset()),
+  });
+  if (opts.refresh) params.set("refresh", "true");
+  if (opts.peek) params.set("peek", "true");
+  let resp: FetchResponse;
+  try {
+    resp = await apiFetch(`/api/synthesis/week?${params}`);
+  } catch {
+    handlers.onError("Could not reach the server.");
+    handlers.onDone();
+    return;
+  }
+  if (resp.status === 402) {
+    handlers.onError(await paymentRequiredMessage(resp));
+    handlers.onDone();
+    return;
+  }
+  if (!resp.ok || !resp.body) {
+    handlers.onError(`Request failed (${resp.status})`);
+    handlers.onDone();
+    return;
+  }
+  await consumeSse(resp, {
+    meta: handlers.onMeta,
+    delta: handlers.onDelta,
+    error: handlers.onError,
+    done: handlers.onDone,
+  });
+}
+
+// --- Cross-links (Stoa Plus). Suggestions, not search results: every
+// failure mode (free tier, old backend, offline) degrades to an empty list.
+
+export async function fetchRelatedPassages(noteId: string): Promise<Source[]> {
+  try {
+    const resp = await apiFetch(`/api/notes/${noteId}/related-passages`);
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRelatedNotes(passageId: number): Promise<Note[]> {
+  try {
+    const resp = await apiFetch(`/api/passages/${passageId}/related-notes`);
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
+/** The signed-in user's discussion thread on a passage (Stoa Plus), if any. */
+export async function fetchPassageThread(
+  passageId: number,
+): Promise<string | null> {
+  try {
+    const resp = await apiFetch(`/api/passages/${passageId}/thread`);
+    if (!resp.ok) return null;
+    return (await resp.json()).conversation_id;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchDaily(): Promise<Source | null> {

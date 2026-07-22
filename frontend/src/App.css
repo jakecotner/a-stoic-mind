@@ -2058,3 +2058,79 @@ button.mic-btn.mic-live,
   font-style: italic;
   color: var(--ink-soft);
 }
+
+/* --- Weekly synthesis (Stoa Plus) --- */
+
+.week-synthesis {
+  margin-top: 2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.synthesis-pitch {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.synthesis-body {
+  font-size: 0.97rem;
+}
+
+.synthesis-body p {
+  margin: 0.6rem 0;
+}
+
+.synthesis-refresh {
+  font-size: 0.82rem;
+}
+
+/* --- Passage discussion (Stoa Plus, reading pane) --- */
+
+.passage-discussion {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.passage-discussion .entry-thread-toggle {
+  font-size: 0.82rem;
+}
+
+/* --- Cross-links (Stoa Plus): entry <-> passage suggestions --- */
+
+.related-block {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.related-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.45rem 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.related-item:hover .related-snippet {
+  text-decoration: underline;
+}
+
+.related-ref {
+  display: block;
+  color: var(--gold);
+  font-size: 0.78rem;
+  margin-bottom: 0.15rem;
+}
+
+.related-snippet {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}

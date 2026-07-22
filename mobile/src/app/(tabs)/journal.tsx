@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EntryThread } from '@/components/entry-thread';
+import { KindredPassages } from '@/components/related-links';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { WeekSynthesis } from '@/components/week-synthesis';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { createNote, deleteNote, fetchDaily, fetchNotes } from '@/lib/api';
@@ -98,6 +100,8 @@ function EntryCard({
         autoStart={autoStart}
         onThreadKnown={onThreadKnown}
       />
+
+      <KindredPassages noteId={note.id} />
     </ThemedView>
   );
 }
@@ -276,6 +280,8 @@ export default function JournalScreen() {
                 reader but himself — begin yours here.
               </ThemedText>
             )}
+
+            <WeekSynthesis notes={notes} />
 
             {notes.map((note) => (
               <EntryCard

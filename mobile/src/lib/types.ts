@@ -105,3 +105,26 @@ export interface ChatMessage {
   sources?: Source[];
   error?: string;
 }
+
+// --- Billing / Stoa Plus
+
+export interface BillingSummary {
+  tier: "free" | "plus";
+  /** Monthly reflection usage (free tier); null = uncapped (Plus, superuser). */
+  reflections: { used: number; limit: number } | null;
+  renews_at: string | null;
+  cancel_at_period_end?: boolean;
+}
+
+/** Meta line preceding a weekly-synthesis stream. */
+export interface SynthesisMeta {
+  week_start: string;
+  /** A synthesis exists (stored, or being generated right now). */
+  exists: boolean;
+  /** This stream replays a stored synthesis instead of generating. */
+  cached: boolean;
+  /** Entries currently in the week vs. entries the stored text covered. */
+  entry_count: number;
+  covered_count: number;
+  generated_at: string | null;
+}

@@ -6,12 +6,15 @@ import {
   fetchConversation,
   fetchDaily,
   fetchNotes,
+  fetchRelatedPassages,
   streamChat,
   streamReflection,
+  streamSynthesis,
   streamTranslation,
   trackReads,
   updateNote,
   type AuthUser,
+  type SynthesisMeta,
 } from "./api";
 import type { ChatMessage, Note, Source } from "./types";
 import { CapHint } from "./Account";
@@ -26,7 +29,7 @@ function formatDate(iso: string): string {
   });
 }
 
-function SourcePanel({ sources }: { sources: Source[] }) {
+export function SourcePanel({ sources }: { sources: Source[] }) {
   if (sources.length === 0) return null;
   return (
     <details className="sources">
@@ -48,7 +51,7 @@ function SourcePanel({ sources }: { sources: Source[] }) {
   );
 }
 
-function MessageView({ message }: { message: ChatMessage }) {
+export function MessageView({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return <div className="msg msg-user">{message.content}</div>;
   }
@@ -299,6 +302,186 @@ function EntryThread({
   );
 }
 
+/** Monday (local) of the week containing d. */
+function mondayOf(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+}
+
+function localIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/** The Stoa's weekly synthesis (Stoa Plus): a week of entries reflected back
+    as one piece. Peeks for a stored synthesis on load; *generating* is always
+    an explicit click, never an autoplay LLM call. Free accounts see a quiet
+    pointer only once they have a week worth synthesizing. */
+function WeekSynthesis({
+  notes,
+  lang,
+  isPlus,
+  onShowPlans,
+}: {
+  notes: Note[];
+  lang: string;
+  isPlus: boolean;
+  onShowPlans: () => void;
+}) {
+  const thisMonday = mondayOf(new Date());
+  const lastMonday = new Date(
+    thisMonday.getFullYear(),
+    thisMonday.getMonth(),
+    thisMonday.getDate() - 7,
+  );
+  const countIn = (start: Date) => {
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+    return notes.filter((n) => {
+      const t = new Date(n.created_at);
+      return t >= start && t < end;
+    }).length;
+  };
+  // A synthesis of one entry would just paraphrase it — wait for a real week.
+  const week =
+    countIn(thisMonday) >= 2
+      ? thisMonday
+      : countIn(lastMonday) >= 2
+        ? lastMonday
+        : null;
+  const weekStart = week ? localIso(week) : null;
+  const isCurrentWeek = week === thisMonday;
+
+  const [content, setContent] = useState("");
+  const [meta, setMeta] = useState<SynthesisMeta | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const token = useRef(0);
+
+  const run = useCallback(
+    (mode: { peek?: boolean; refresh?: boolean }) => {
+      if (!weekStart) return;
+      const t = ++token.current;
+      const fresh = () => token.current === t;
+      setBusy(true);
+      setError(null);
+      setContent("");
+      streamSynthesis(weekStart, { language: lang, ...mode }, {
+        onMeta: (m) => {
+          if (fresh()) setMeta(m);
+        },
+        onDelta: (d) => {
+          if (fresh()) setContent((c) => c + d);
+        },
+        onError: (e) => {
+          if (fresh()) setError(e);
+        },
+        onDone: () => {
+          if (fresh()) setBusy(false);
+        },
+        onPlusRequired: onShowPlans,
+      });
+    },
+    [weekStart, lang, onShowPlans],
+  );
+
+  useEffect(() => {
+    if (isPlus && weekStart) run({ peek: true });
+  }, [isPlus, weekStart, run]);
+
+  if (!weekStart) return null;
+  const caption = isCurrentWeek ? "Your week" : "Last week";
+
+  if (!isPlus) {
+    return (
+      <div className="week-synthesis">
+        <div className="pane-caption">{caption}</div>
+        <p className="synthesis-pitch">
+          With{" "}
+          <button className="auth-link" onClick={onShowPlans}>
+            Stoa Plus
+          </button>
+          , the Stoa reads your week of entries and reflects its threads back
+          to you.
+        </p>
+      </div>
+    );
+  }
+
+  const newEntries = meta ? meta.entry_count - meta.covered_count : 0;
+  return (
+    <div className="week-synthesis">
+      <div className="pane-caption">{caption}</div>
+      {content ? (
+        <div className="synthesis-body">
+          <Markdown>{content}</Markdown>
+        </div>
+      ) : busy ? (
+        <div className="thinking">Reading your week&hellip;</div>
+      ) : meta && !meta.exists ? (
+        <button className="auth-link" onClick={() => run({})}>
+          Synthesize {isCurrentWeek ? "your week so far" : "last week"}
+        </button>
+      ) : null}
+      {error && <p className="msg-error">{error}</p>}
+      {content && !busy && newEntries > 0 && (
+        <button
+          className="auth-link synthesis-refresh"
+          onClick={() => run({ refresh: true })}
+        >
+          Weave in {newEntries} newer {newEntries === 1 ? "entry" : "entries"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Cross-link (Stoa Plus): passages that speak to the open entry. Silent
+    when nothing resonates. Mounted with key={noteId} so results reset when
+    another entry opens. */
+function KindredPassages({
+  noteId,
+  isPlus,
+  onOpenPassage,
+}: {
+  noteId: string;
+  isPlus: boolean;
+  onOpenPassage: (passageId: number) => void;
+}) {
+  const [passages, setPassages] = useState<Source[]>([]);
+
+  useEffect(() => {
+    if (!isPlus) return;
+    let cancelled = false;
+    fetchRelatedPassages(noteId).then((ps) => {
+      if (!cancelled) setPassages(ps);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [noteId, isPlus]);
+
+  if (passages.length === 0) return null;
+  return (
+    <div className="related-block">
+      <div className="pane-caption">Passages that speak to this</div>
+      {passages.map((p) => (
+        <button
+          key={p.id}
+          className="related-item"
+          onClick={() => onOpenPassage(p.id)}
+        >
+          <span className="related-ref">
+            {p.author}, {p.reference}
+          </span>
+          <span className="related-snippet">
+            {p.text.length > 150 ? p.text.slice(0, 150).trimEnd() + "…" : p.text}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function NoteEntry({
   note,
   onChanged,
@@ -402,6 +585,7 @@ export default function Journal({
   capRemaining,
   onCapHit,
   onShowPlans,
+  isPlus,
 }: {
   user: AuthUser | null;
   /** App-wide reading language ("" = published English); the daily passage
@@ -422,6 +606,8 @@ export default function Journal({
   onCapHit: () => void;
   /** Open the account/upgrade view (Stoa Plus pitch). */
   onShowPlans: () => void;
+  /** Uncapped account (Plus or superuser): weekly synthesis is available. */
+  isPlus: boolean;
 }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
@@ -608,6 +794,15 @@ export default function Journal({
               />
             </div>
           )}
+
+          {user && (
+            <WeekSynthesis
+              notes={notes}
+              lang={lang}
+              isPlus={isPlus}
+              onShowPlans={onShowPlans}
+            />
+          )}
         </section>
 
         {/* Right: your writing — the editor, or the entry picked in the
@@ -635,6 +830,12 @@ export default function Journal({
                     onOpenNote(null);
                     onMutated();
                   }}
+                  onOpenPassage={onOpenPassage}
+                />
+                <KindredPassages
+                  key={`kindred:${openNote.id}`}
+                  noteId={openNote.id}
+                  isPlus={isPlus}
                   onOpenPassage={onOpenPassage}
                 />
               </>

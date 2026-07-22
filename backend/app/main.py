@@ -30,9 +30,11 @@ from app.journal import router as journal_router
 from app.practice import router as practice_router
 from app.reading import router as reading_router
 from app.reflection import router as reflection_router, seed_message_content
+from app.related import router as related_router
+from app.synthesis import router as synthesis_router
 from app.translation import LANGUAGES, router as translation_router
 from app.retrieval import search_passages
-from app.usage import enforce_reflection_cap, record_usage
+from app.usage import enforce_reflection_cap, record_usage, require_plus
 from app.schemas import (
     ChatRequest,
     ConversationOut,
@@ -76,6 +78,8 @@ app.include_router(conversations_router)
 app.include_router(admin_router)
 app.include_router(billing_router)
 app.include_router(reflection_router)
+app.include_router(related_router)
+app.include_router(synthesis_router)
 app.include_router(translation_router)
 # Hook points for when email sending is set up (templates in fastapi-users docs):
 # app.include_router(fastapi_users.get_verify_router(UserRead), prefix="/api/auth", tags=["auth"])
@@ -162,18 +166,41 @@ def chat(
             )
             if existing is not None:
                 raise HTTPException(409, "Entry already has a reflection thread")
+        # A discussion thread on a passage in the reading pane: Plus-only
+        # (MONETIZATION.md slice 4), one per (user, passage).
+        anchor_passage = None
+        if req.passage_id is not None:
+            if user is None:
+                raise HTTPException(401, "Sign in to discuss passages")
+            require_plus(user, "Passage discussions are part of Stoa Plus.")
+            anchor_passage = db.get(Passage, req.passage_id)
+            if anchor_passage is None:
+                raise HTTPException(404, "Passage not found")
+            existing = db.scalar(
+                select(Conversation).where(
+                    Conversation.user_id == user.id,
+                    Conversation.passage_id == anchor_passage.id,
+                )
+            )
+            if existing is not None:
+                raise HTTPException(409, "Passage already has a discussion thread")
         conversation = Conversation(
             title=req.message[:80],
             user_id=user.id if user else None,
             note_id=note.id if note else None,
+            passage_id=anchor_passage.id if anchor_passage else None,
         )
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
         # Seed the fresh conversation with the passage + reflection the user
         # was shown, so it's real history (for the model and for reloads).
-        if req.seed_passage_id is not None:
-            seed_passage = db.get(Passage, req.seed_passage_id)
+        # A passage-anchored thread seeds with its own passage by default.
+        seed_id = req.seed_passage_id
+        if seed_id is None and anchor_passage is not None:
+            seed_id = anchor_passage.id
+        if seed_id is not None:
+            seed_passage = db.get(Passage, seed_id)
             if seed_passage is not None:
                 db.add(
                     Message(
@@ -259,6 +286,25 @@ def get_conversation(
     if conversation is None or not _conversation_visible(conversation, user):
         raise HTTPException(404, "Conversation not found")
     return conversation
+
+
+@app.get("/api/passages/{passage_id}/thread")
+def passage_thread(
+    passage_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+) -> dict:
+    """The signed-in user's discussion thread on a passage, if one exists —
+    lets the reading pane offer 'continue' instead of 'start'."""
+    conversation = db.scalar(
+        select(Conversation).where(
+            Conversation.user_id == user.id,
+            Conversation.passage_id == passage_id,
+        )
+    )
+    if conversation is None:
+        raise HTTPException(404, "No discussion for this passage")
+    return {"conversation_id": str(conversation.id)}
 
 
 @app.get("/api/passages/{passage_id}", response_model=PassageOut)

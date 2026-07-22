@@ -121,9 +121,21 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    # "free" | "plus" — flipped by hand (admin endpoint) until Stripe lands
-    # (MONETIZATION.md slice 3).
+    # "free" | "plus" — owned by Stripe webhooks (app/billing.py) since
+    # slice 3; the admin endpoint remains as a manual override.
     tier: Mapped[str] = mapped_column(String(10), server_default="free")
+    # Stripe linkage (MONETIZATION.md slice 3). renews/cancel mirror the
+    # subscription state from webhook events so /api/billing/summary never
+    # has to call Stripe.
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
+    plus_renews_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    plus_cancel_at_period_end: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     # Reading language: a code from app/translation.py LANGUAGES, or NULL for
     # the published English. Account-level so it follows the user across
     # devices; the web client mirrors it in localStorage for signed-out use.
@@ -149,6 +161,13 @@ class Note(Base):
         ForeignKey("passages.id", ondelete="SET NULL"), nullable=True
     )
     content: Mapped[str] = mapped_column(Text)
+    # voyage-3.5 embedding of content, for entry↔passage cross-links
+    # (MONETIZATION.md slice 4). NULL when Voyage isn't configured or the
+    # embed failed; written best-effort on create/update and lazily filled
+    # by the related-notes lookup.
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -222,6 +241,14 @@ class Conversation(Base):
         nullable=True,
         index=True,
     )
+    # Set = this conversation is the user's discussion thread on that passage
+    # in the reading pane (MONETIZATION.md slice 4; Plus-only). One per
+    # (user, passage), enforced in the chat endpoint.
+    passage_id: Mapped[int | None] = mapped_column(
+        ForeignKey("passages.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -247,6 +274,31 @@ class Message(Base):
     )
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class Synthesis(Base):
+    """The Stoa's weekly synthesis of one user's journal (MONETIZATION.md
+    slice 4; Plus-only). Keyed by the client-local Monday the week starts on.
+    entry_count remembers how many notes the synthesis covered, so a client
+    can offer a refresh when new entries have appeared; language is stored,
+    not keyed — a re-request in another language regenerates in place."""
+
+    __tablename__ = "syntheses"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    week_start: Mapped[date] = mapped_column(Date, primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(100))
+    # Language as in app/translation.py; "" = English.
+    language: Mapped[str] = mapped_column(String(35), server_default="")
+    entry_count: Mapped[int]
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class LlmUsage(Base):

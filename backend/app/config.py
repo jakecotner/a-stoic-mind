@@ -70,6 +70,21 @@ class Settings(BaseSettings):
     # "plus" tier and superusers are uncapped.
     free_tier_monthly_turns: int = 10
 
+    # Stripe (MONETIZATION.md slice 3). All unset = payments not live:
+    # checkout/portal return 503 and the frontend keeps saying "payments
+    # aren't live yet". Webhook endpoint: POST /api/billing/webhook.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_annual: str | None = None  # price_... id for $49/yr
+    stripe_price_monthly: str | None = None  # price_... id for $6.99/mo
+    # Card-required free trial on new subscriptions; 0 disables (§5 slice 3
+    # names the fallback if trial abuse appears).
+    stripe_trial_days: int = 7
+    # Absolute origin for Stripe redirect URLs (e.g. https://astoicmind.com).
+    # Unset: derived per-request from the Origin header / request base URL,
+    # which is right in dev; set it explicitly in production.
+    public_base_url: str | None = None
+
     retrieval_top_k: int = 6
     history_max_messages: int = 20
 

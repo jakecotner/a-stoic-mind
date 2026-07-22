@@ -92,12 +92,8 @@ function PlusPanel() {
       <p className="acct-pitch">Unlimited conversation with the Stoa.</p>
       <ul className="plus-features">
         <li>Unlimited reflection threads on your entries</li>
-        <li>
-          Weekly synthesis of your journal <em>(coming soon)</em>
-        </li>
-        <li>
-          Discussions anchored to passages as you read <em>(coming soon)</em>
-        </li>
+        <li>Weekly synthesis of your journal</li>
+        <li>Discussions anchored to passages as you read</li>
         <li>The deepest model for every conversation</li>
       </ul>
       <div className="price-cards">

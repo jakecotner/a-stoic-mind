@@ -36,6 +36,10 @@ class ChatRequest(BaseModel):
     # For a NEW conversation: anchor it as the reflection thread under this
     # journal entry (must belong to the requesting user).
     note_id: uuid.UUID | None = None
+    # For a NEW conversation: anchor it as the user's discussion thread on
+    # this passage in the reading pane (Stoa Plus; one per user+passage).
+    # Implies seeding with the passage unless seed_passage_id says otherwise.
+    passage_id: int | None = None
 
 
 class PassageOut(BaseModel):

@@ -76,6 +76,16 @@ def reflection_turns_this_month(db: Session, user_id: uuid.UUID) -> int:
     )
 
 
+def require_plus(user: User, message: str) -> None:
+    """402 unless the account is Plus (or superuser) — the gate for slice-4
+    paid features (weekly synthesis, passage threads, cross-links)."""
+    if user.is_superuser or user.tier == "plus":
+        return
+    raise HTTPException(
+        status_code=402, detail={"code": "plus_required", "message": message}
+    )
+
+
 def _cap_error(scope: str, used: int | None, limit: int) -> HTTPException:
     return HTTPException(
         status_code=402,

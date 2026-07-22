@@ -99,6 +99,7 @@ export async function streamChat(
   seedPassageId?: number | null,
   noteId?: string | null,
   language?: string,
+  passageId?: number | null,
 ): Promise<void> {
   const resp = await fetch("/api/chat", {
     method: "POST",
@@ -109,6 +110,7 @@ export async function streamChat(
       seed_passage_id: seedPassageId ?? undefined,
       note_id: noteId ?? undefined,
       language: language || undefined,
+      passage_id: passageId ?? undefined,
     }),
   });
   if (resp.status === 402) {
@@ -160,10 +162,104 @@ export async function streamReflection(
   });
 }
 
+/** Meta line preceding a weekly-synthesis stream. */
+export interface SynthesisMeta {
+  week_start: string;
+  /** A synthesis exists (stored, or being generated right now). */
+  exists: boolean;
+  /** This stream replays a stored synthesis instead of generating. */
+  cached: boolean;
+  /** Entries currently in the week vs. entries the stored text covered —
+      more current than covered means a refresh would see new writing. */
+  entry_count: number;
+  covered_count: number;
+  generated_at: string | null;
+}
+
+/** Stream the week's synthesis (Stoa Plus). peek never generates: it replays
+    a stored synthesis or reports exists=false, so it's safe to call on load. */
+export async function streamSynthesis(
+  weekStart: string,
+  opts: { language?: string; refresh?: boolean; peek?: boolean },
+  handlers: {
+    onMeta: (meta: SynthesisMeta) => void;
+    onDelta: (text: string) => void;
+    onError: (message: string) => void;
+    onDone: () => void;
+    /** 402: the account is on the free tier. */
+    onPlusRequired?: () => void;
+  },
+): Promise<void> {
+  const params = new URLSearchParams({
+    week_start: weekStart,
+    tz_offset: String(new Date().getTimezoneOffset()),
+  });
+  if (opts.language) params.set("language", opts.language);
+  if (opts.refresh) params.set("refresh", "true");
+  if (opts.peek) params.set("peek", "true");
+  let resp: Response;
+  try {
+    resp = await fetch(`/api/synthesis/week?${params}`);
+  } catch {
+    handlers.onError("Could not reach the server — try again in a moment.");
+    handlers.onDone();
+    return;
+  }
+  if (resp.status === 402) {
+    handlers.onPlusRequired?.();
+    handlers.onDone();
+    return;
+  }
+  if (!resp.ok || !resp.body) {
+    handlers.onError(`Request failed (${resp.status})`);
+    handlers.onDone();
+    return;
+  }
+  await consumeSse(resp, {
+    meta: handlers.onMeta,
+    delta: handlers.onDelta,
+    error: handlers.onError,
+    done: handlers.onDone,
+  });
+}
+
 export async function fetchPassage(id: number): Promise<Source | null> {
   const resp = await fetch(`/api/passages/${id}`);
   if (!resp.ok) return null;
   return resp.json();
+}
+
+// --- Cross-links (Stoa Plus): an entry's kindred passages and a passage's
+// kindred entries. Suggestions, not search results — every failure mode
+// (signed out, free tier, keyless server) degrades to an empty list.
+
+export async function fetchRelatedPassages(noteId: string): Promise<Source[]> {
+  try {
+    const resp = await fetch(`/api/notes/${noteId}/related-passages`);
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRelatedNotes(passageId: number): Promise<Note[]> {
+  try {
+    const resp = await fetch(`/api/passages/${passageId}/related-notes`);
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
+/** The signed-in user's discussion thread on a passage (Stoa Plus), if any. */
+export async function fetchPassageThread(
+  passageId: number,
+): Promise<string | null> {
+  const resp = await fetch(`/api/passages/${passageId}/thread`);
+  if (!resp.ok) return null;
+  return (await resp.json()).conversation_id;
 }
 
 export async function fetchDaily(): Promise<Source | null> {
