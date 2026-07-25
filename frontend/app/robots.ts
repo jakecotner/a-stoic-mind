@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       // The authed app surface has nothing to index.
-      disallow: ["/chat", "/account", "/team", "/invite", "/verify", "/api/"],
+      disallow: ["/chat", "/account", "/verify", "/api/"],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };

@@ -24,13 +24,6 @@ export default function Header() {
             >
               Chat
             </Link>
-            {/* orgs/RBAC module — remove this link with it */}
-            <Link
-              href="/team"
-              className={pathname === "/team" ? "font-medium" : "opacity-70 hover:opacity-100"}
-            >
-              Team
-            </Link>
             <Link
               href="/account"
               className={pathname === "/account" ? "font-medium" : "opacity-70 hover:opacity-100"}
