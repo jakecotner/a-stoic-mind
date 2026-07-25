@@ -191,6 +191,49 @@ export async function fetchPassage(passageId: string): Promise<Passage> {
   return resp.json();
 }
 
+// --- Journal (mirrors backend app/routes/journal.py — authed, private)
+
+export type JournalEntry = Schema<"JournalEntryOut">;
+
+/** Entries for one day (default: today). Signed out → empty list. */
+export async function fetchJournal(on?: string): Promise<JournalEntry[]> {
+  const resp = await fetch(`/api/journal${on ? `?on=${on}` : ""}`);
+  if (resp.status === 401) return [];
+  if (!resp.ok) throw new Error(`Could not load your journal (${resp.status})`);
+  return resp.json();
+}
+
+export async function createJournalEntry(
+  content: string,
+  passageId?: string | null,
+): Promise<JournalEntry> {
+  const resp = await fetch("/api/journal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, passage_id: passageId ?? null }),
+  });
+  if (!resp.ok) throw new Error(`Could not save the entry (${resp.status})`);
+  return resp.json();
+}
+
+export async function updateJournalEntry(
+  entryId: string,
+  content: string,
+): Promise<JournalEntry> {
+  const resp = await fetch(`/api/journal/${entryId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!resp.ok) throw new Error(`Could not update the entry (${resp.status})`);
+  return resp.json();
+}
+
+export async function deleteJournalEntry(entryId: string): Promise<void> {
+  const resp = await fetch(`/api/journal/${entryId}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`Could not delete the entry (${resp.status})`);
+}
+
 // --- Chat (optional module — mirrors backend app/services/chat.py +
 // app/routes/chat.py; delete together)
 

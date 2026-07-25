@@ -103,7 +103,7 @@ export default async function LandingPage() {
 
       {/* Right: the journal pad */}
       <div className="lg:border-l lg:border-black/10 lg:pl-8 dark:lg:border-white/15">
-        <JournalPad />
+        <JournalPad passageId={daily?.passage.id ?? null} />
       </div>
     </div>
   );

@@ -28,6 +28,15 @@ erDiagram
         uuid passage_id FK
         datetime created_at
     }
+    journal_entries {
+        uuid id PK
+        uuid user_id FK
+        uuid passage_id FK "nullable"
+        date date
+        text content
+        datetime created_at
+        datetime updated_at
+    }
     llm_usage {
         uuid id PK
         uuid user_id FK "nullable"
@@ -82,6 +91,8 @@ erDiagram
     }
     users |o--o{ conversations : "user_id · SET NULL"
     passages ||--o{ daily_passages : "passage_id · CASCADE"
+    users ||--o{ journal_entries : "user_id · CASCADE"
+    passages |o--o{ journal_entries : "passage_id · SET NULL"
     users |o--o{ llm_usage : "user_id · SET NULL"
     conversations ||--o{ messages : "conversation_id · CASCADE"
     passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
