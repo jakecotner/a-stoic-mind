@@ -30,8 +30,9 @@
   domain models usually belong to the org (`org_id` FK +
   `require_org_role(...)` gates), not to a single user — ask the user which.
 - **Ports**: backend uvicorn on **8000**, `next dev` on **3000**, Postgres in
-  the docker container `astoicmind-db` on **5432** (`backend/docker-compose.yml`).
-  If a port is taken on this machine, note the substitute here.
+  the docker container `astoicmind-db` on host port **5436**
+  (`backend/docker-compose.yml`; 5432–5435 are taken by other projects'
+  containers on this machine).
 - Backend runs from `backend/` with its venv:
   `.venv/Scripts/python -m uvicorn app.main:app --port 8000`
 - Run alembic as `python -m alembic` (the exe entry point can't import `app`).

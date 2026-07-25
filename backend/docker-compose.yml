@@ -1,6 +1,10 @@
 # Local dev database. The pgvector image is stock Postgres 17 plus the
 # vector extension — free future-proofing if the project ever wants
 # embeddings (CREATE EXTENSION vector; then add pgvector to requirements).
+# Explicit project name — the default (parent folder, "backend") collides
+# with every other app that keeps its compose file in a backend/ folder.
+name: astoicmind
+
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -11,8 +15,9 @@ services:
       POSTGRES_DB: astoicmind
     # If a local PostgreSQL install owns 5432, change the host port here and
     # in DATABASE_URL (e.g. "5433:5432").
+    # 5432-5435 are owned by other projects' containers on this machine.
     ports:
-      - "5432:5432"
+      - "5436:5432"
     volumes:
       - astoicmind-pgdata:/var/lib/postgresql/data
     healthcheck:
