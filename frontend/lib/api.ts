@@ -157,6 +157,29 @@ export async function verifyEmail(token: string): Promise<void> {
   throw new Error(`Could not verify the email (${resp.status})`);
 }
 
+// --- Corpus (mirrors backend app/routes/passage.py — public, read-only)
+
+export type Work = Schema<"WorkOut">;
+export type Passage = Schema<"PassageOut">;
+
+export async function fetchWorks(): Promise<Work[]> {
+  const resp = await fetch("/api/works");
+  if (!resp.ok) throw new Error(`Could not load the library (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchPassagesForWork(work: string): Promise<Passage[]> {
+  const resp = await fetch(`/api/passages?work=${encodeURIComponent(work)}`);
+  if (!resp.ok) throw new Error(`Could not load ${work} (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchPassage(passageId: string): Promise<Passage> {
+  const resp = await fetch(`/api/passages/${passageId}`);
+  if (!resp.ok) throw new Error(`Could not load the passage (${resp.status})`);
+  return resp.json();
+}
+
 // --- Chat (optional module — mirrors backend app/services/chat.py +
 // app/routes/chat.py; delete together)
 

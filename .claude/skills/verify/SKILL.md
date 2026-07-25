@@ -8,7 +8,7 @@ description: Build, launch, and drive the app (FastAPI backend + Next.js fronten
 ## Launch
 
 1. Postgres: `docker compose up -d` from `backend/` (container `astoicmind-db`,
-   localhost:5432), then `python -m alembic upgrade head`.
+   localhost:5436), then `python -m alembic upgrade head`.
 2. Backend (from `backend/`):
    `.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000`
 3. Frontend (from `frontend/`): `npx next dev -p 3000` →

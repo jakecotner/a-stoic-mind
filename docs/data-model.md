@@ -33,13 +33,6 @@ erDiagram
         int cache_read_input_tokens
         datetime created_at
     }
-    memberships {
-        uuid id PK
-        uuid org_id FK
-        uuid user_id FK
-        string role
-        datetime created_at
-    }
     messages {
         uuid id PK
         uuid conversation_id FK
@@ -47,19 +40,19 @@ erDiagram
         text content
         datetime created_at
     }
-    org_invites {
+    passages {
         uuid id PK
-        uuid org_id FK
-        string email
-        string role
-        string token UK
-        datetime expires_at
-        datetime created_at
-    }
-    organizations {
-        uuid id PK
-        string name
-        uuid owner_id FK
+        string author
+        string work
+        string reference UK
+        int position
+        string translator
+        text text
+        bool curated
+        vector embedding "nullable"
+        text original_text "nullable"
+        string original_language "nullable"
+        string original_source "nullable"
         datetime created_at
     }
     users {
@@ -76,9 +69,5 @@ erDiagram
     }
     users |o--o{ conversations : "user_id · SET NULL"
     users |o--o{ llm_usage : "user_id · SET NULL"
-    organizations ||--o{ memberships : "org_id · CASCADE"
-    users ||--o{ memberships : "user_id · CASCADE"
     conversations ||--o{ messages : "conversation_id · CASCADE"
-    organizations ||--o{ org_invites : "org_id · CASCADE"
-    users ||--o{ organizations : "owner_id · CASCADE"
 ```

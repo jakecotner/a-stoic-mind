@@ -175,6 +175,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/works": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Works */
+        get: operations["list_works_api_works_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Passages For Work */
+        get: operations["passages_for_work_api_passages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages/{passage_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Passage */
+        get: operations["get_passage_api_passages__passage_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat": {
         parameters: {
             query?: never;
@@ -534,6 +585,28 @@ export interface components {
             /** Require Email Verification */
             require_email_verification: boolean;
         };
+        /** PassageOut */
+        PassageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Author */
+            author: string;
+            /** Work */
+            work: string;
+            /** Reference */
+            reference: string;
+            /** Position */
+            position: number;
+            /** Translator */
+            translator: string;
+            /** Text */
+            text: string;
+            /** Original Language */
+            original_language: ("grc" | "la") | null;
+        };
         /** TierUpdate */
         TierUpdate: {
             /** Tier */
@@ -635,6 +708,22 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WorkOut
+         * @description One work in the library, aggregated from its passages.
+         */
+        WorkOut: {
+            /** Author */
+            author: string;
+            /** Work */
+            work: string;
+            /** Translator */
+            translator: string;
+            /** Passage Count */
+            passage_count: number;
+            /** Original Language */
+            original_language: ("grc" | "la") | null;
         };
     };
     responses: never;
@@ -1030,6 +1119,88 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_works_api_works_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOut"][];
+                };
+            };
+        };
+    };
+    passages_for_work_api_passages_get: {
+        parameters: {
+            query: {
+                work: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_passage_api_passages__passage_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
