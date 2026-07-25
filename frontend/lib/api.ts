@@ -157,6 +157,17 @@ export async function verifyEmail(token: string): Promise<void> {
   throw new Error(`Could not verify the email (${resp.status})`);
 }
 
+// --- Daily passage (mirrors backend app/routes/daily.py — public)
+
+export type Daily = Schema<"DailyOut">;
+
+export async function fetchDaily(): Promise<Daily> {
+  const resp = await fetch("/api/daily");
+  if (!resp.ok)
+    throw new Error(`Could not load today's passage (${resp.status})`);
+  return resp.json();
+}
+
 // --- Corpus (mirrors backend app/routes/passage.py — public, read-only)
 
 export type Work = Schema<"WorkOut">;

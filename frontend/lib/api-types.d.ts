@@ -175,6 +175,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Today */
+        get: operations["today_api_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/works": {
         parameters: {
             query?: never;
@@ -547,6 +564,17 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** DailyOut */
+        DailyOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            passage: components["schemas"]["PassageOut"];
+            /** Breakdown */
+            breakdown: string | null;
         };
         /** ErrorModel */
         ErrorModel: {
@@ -1119,6 +1147,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    today_api_daily_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyOut"];
+                };
             };
         };
     };

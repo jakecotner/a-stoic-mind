@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import Row, func, select
 from sqlalchemy.orm import Session
 
-from app.models import Passage
+from app.models import Passage, PassageBreakdown
 
 
 def get(db: Session, passage_id: uuid.UUID) -> Passage | None:
@@ -40,3 +40,21 @@ def for_work(db: Session, work: str) -> list[Passage]:
             select(Passage).where(Passage.work == work).order_by(Passage.position)
         )
     )
+
+
+def get_breakdown(
+    db: Session, passage_id: uuid.UUID, language: str
+) -> PassageBreakdown | None:
+    return db.get(PassageBreakdown, (passage_id, language))
+
+
+def insert_breakdown(
+    db: Session, passage_id: uuid.UUID, language: str, text: str, model: str
+) -> PassageBreakdown:
+    row = PassageBreakdown(
+        passage_id=passage_id, language=language, text=text, model=model
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row

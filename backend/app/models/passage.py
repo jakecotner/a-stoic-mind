@@ -61,3 +61,24 @@ class Passage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class PassageBreakdown(Base):
+    """LLM reflection on a passage, generated on first request and cached
+    forever per (passage, language) — the corpus is immutable, so a breakdown
+    never goes stale. model records which LLM produced the text so a future
+    quality pass can target old rows."""
+
+    __tablename__ = "passage_breakdowns"
+
+    passage_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("passages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    language: Mapped[str] = mapped_column(String(10), primary_key=True)  # "en"
+    text: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

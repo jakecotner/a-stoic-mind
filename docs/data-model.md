@@ -22,6 +22,12 @@ erDiagram
         string title "nullable"
         datetime created_at
     }
+    daily_passages {
+        uuid id PK
+        date date UK
+        uuid passage_id FK
+        datetime created_at
+    }
     llm_usage {
         uuid id PK
         uuid user_id FK "nullable"
@@ -38,6 +44,13 @@ erDiagram
         uuid conversation_id FK
         string role
         text content
+        datetime created_at
+    }
+    passage_breakdowns {
+        uuid passage_id PK,FK
+        string language PK
+        text text
+        string model
         datetime created_at
     }
     passages {
@@ -68,6 +81,8 @@ erDiagram
         bool plus_cancel_at_period_end
     }
     users |o--o{ conversations : "user_id · SET NULL"
+    passages ||--o{ daily_passages : "passage_id · CASCADE"
     users |o--o{ llm_usage : "user_id · SET NULL"
     conversations ||--o{ messages : "conversation_id · CASCADE"
+    passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
 ```

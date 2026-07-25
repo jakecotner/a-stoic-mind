@@ -8,6 +8,7 @@ from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.chat import router as chat_router
+from app.routes.daily import router as daily_router
 from app.routes.passage import router as passage_router
 from app.schemas.meta import MetaOut
 
@@ -56,6 +57,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(daily_router)
 app.include_router(passage_router)
 app.include_router(chat_router)  # optional module — see app/services/chat.py
 app.include_router(billing_router)
