@@ -1,0 +1,25 @@
+# Local dev database. The pgvector image is stock Postgres 17 plus the
+# vector extension — free future-proofing if the project ever wants
+# embeddings (CREATE EXTENSION vector; then add pgvector to requirements).
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: astoicmind-db
+    environment:
+      POSTGRES_USER: astoicmind
+      POSTGRES_PASSWORD: astoicmind
+      POSTGRES_DB: astoicmind
+    # If a local PostgreSQL install owns 5432, change the host port here and
+    # in DATABASE_URL (e.g. "5433:5432").
+    ports:
+      - "5432:5432"
+    volumes:
+      - astoicmind-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astoicmind"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  astoicmind-pgdata:

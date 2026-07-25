@@ -1,0 +1,6 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+# intermediate for frontend type generation (scripts/export_openapi.py)
+openapi.json
