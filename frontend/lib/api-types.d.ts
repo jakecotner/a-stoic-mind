@@ -252,7 +252,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Passages For Work */
+        /**
+         * Passages For Work
+         * @description A work's passages in reading order; `part` narrows to one reading
+         *     unit (a book, letter, or chapter — see /api/works/toc).
+         */
         get: operations["passages_for_work_api_passages_get"];
         put?: never;
         post?: never;
@@ -273,6 +277,81 @@ export interface paths {
         get: operations["get_passage_api_passages__passage_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/works/toc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Work Toc */
+        get: operations["work_toc_api_works_toc_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notes
+         * @description Margin notes for one passage, or all of the caller's notes in a work
+         *     (the reader fetches per-work so each page is one request).
+         */
+        get: operations["list_notes_api_notes_get"];
+        put?: never;
+        /** Create Note */
+        post: operations["create_note_api_notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Note */
+        delete: operations["delete_note_api_notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Note */
+        patch: operations["update_note_api_notes__note_id__patch"];
+        trace?: never;
+    };
+    "/api/reads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Passage Ids */
+        get: operations["read_passage_ids_api_reads_get"];
+        put?: never;
+        /** Mark Read */
+        post: operations["mark_read_api_reads_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -663,6 +742,21 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** MarkReadIn */
+        MarkReadIn: {
+            /** Work */
+            work: string;
+            /**
+             * Part
+             * @default
+             */
+            part: string;
+        };
+        /** MarkReadOut */
+        MarkReadOut: {
+            /** Marked */
+            marked: number;
+        };
         /** MessageOut */
         MessageOut: {
             /**
@@ -687,6 +781,48 @@ export interface components {
         MetaOut: {
             /** Require Email Verification */
             require_email_verification: boolean;
+        };
+        /** NoteCreate */
+        NoteCreate: {
+            /**
+             * Passage Id
+             * Format: uuid
+             */
+            passage_id: string;
+            /** Content */
+            content: string;
+        };
+        /** NoteOut */
+        NoteOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Passage Id */
+            passage_id: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** NoteUpdate */
+        NoteUpdate: {
+            /** Content */
+            content: string;
         };
         /** PassageOut */
         PassageOut: {
@@ -714,6 +850,20 @@ export interface components {
         TierUpdate: {
             /** Tier */
             tier: string;
+        };
+        /**
+         * TocPartOut
+         * @description One reading unit of a work — a book, letter, or chapter. part is the
+         *     machine key (e.g. "4", "1.15", or "" for a work read whole); label is the
+         *     human name (e.g. "Book 4", "Letter 13").
+         */
+        TocPartOut: {
+            /** Part */
+            part: string;
+            /** Label */
+            label: string;
+            /** Passage Count */
+            passage_count: number;
         };
         /** Turns */
         Turns: {
@@ -1397,6 +1547,7 @@ export interface operations {
         parameters: {
             query: {
                 work: string;
+                part?: string | null;
             };
             header?: never;
             path?: never;
@@ -1442,6 +1593,230 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PassageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    work_toc_api_works_toc_get: {
+        parameters: {
+            query: {
+                work: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TocPartOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notes_api_notes_get: {
+        parameters: {
+            query?: {
+                passage_id?: string | null;
+                work?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_note_api_notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_note_api_notes__note_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_note_api_notes__note_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_passage_ids_api_reads_get: {
+        parameters: {
+            query: {
+                work: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_api_reads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkReadIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkReadOut"];
                 };
             };
             /** @description Validation Error */

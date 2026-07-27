@@ -55,11 +55,27 @@ erDiagram
         text content
         datetime created_at
     }
+    notes {
+        uuid id PK
+        uuid user_id FK
+        uuid passage_id FK "nullable"
+        date date
+        text content
+        datetime created_at
+        datetime updated_at
+    }
     passage_breakdowns {
         uuid passage_id PK,FK
         string language PK
         text text
         string model
+        datetime created_at
+    }
+    passage_reads {
+        uuid id PK
+        uuid user_id FK
+        uuid passage_id FK
+        date date
         datetime created_at
     }
     passages {
@@ -95,5 +111,9 @@ erDiagram
     passages |o--o{ journal_entries : "passage_id · SET NULL"
     users |o--o{ llm_usage : "user_id · SET NULL"
     conversations ||--o{ messages : "conversation_id · CASCADE"
+    users ||--o{ notes : "user_id · CASCADE"
+    passages |o--o{ notes : "passage_id · SET NULL"
     passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
+    users ||--o{ passage_reads : "user_id · CASCADE"
+    passages ||--o{ passage_reads : "passage_id · CASCADE"
 ```

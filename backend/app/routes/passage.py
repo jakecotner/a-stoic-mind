@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.crud import passage as passage_crud
 from app.schemas.passage import PassageOut, WorkOut
+from app.services import reading as reading_service
 
 router = APIRouter(prefix="/api", tags=["corpus"])
 
@@ -18,7 +19,13 @@ def list_works(db: Session = Depends(get_db)):
 
 
 @router.get("/passages", response_model=list[PassageOut])
-def passages_for_work(work: str, db: Session = Depends(get_db)):
+def passages_for_work(
+    work: str, part: str | None = None, db: Session = Depends(get_db)
+):
+    """A work's passages in reading order; `part` narrows to one reading
+    unit (a book, letter, or chapter — see /api/works/toc)."""
+    if part is not None:
+        return reading_service.passages_for_part(db, work, part)
     passages = passage_crud.for_work(db, work)
     if not passages:
         raise HTTPException(404, "No such work")

@@ -185,6 +185,78 @@ export async function fetchPassagesForWork(work: string): Promise<Passage[]> {
   return resp.json();
 }
 
+// --- Reader (mirrors backend app/routes/reading.py — TOC public; notes and
+// reads authed, private)
+
+export type TocPart = Schema<"TocPartOut">;
+export type MarginNote = Schema<"NoteOut">;
+
+export async function fetchToc(work: string): Promise<TocPart[]> {
+  const resp = await fetch(`/api/works/toc?work=${encodeURIComponent(work)}`);
+  if (!resp.ok) throw new Error(`Could not load ${work} (${resp.status})`);
+  return resp.json();
+}
+
+/** The caller's margin notes across a work. Signed out → empty list. */
+export async function fetchNotesForWork(work: string): Promise<MarginNote[]> {
+  const resp = await fetch(`/api/notes?work=${encodeURIComponent(work)}`);
+  if (resp.status === 401) return [];
+  if (!resp.ok) throw new Error(`Could not load your notes (${resp.status})`);
+  return resp.json();
+}
+
+export async function createNote(
+  passageId: string,
+  content: string,
+): Promise<MarginNote> {
+  const resp = await fetch("/api/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passage_id: passageId, content }),
+  });
+  if (!resp.ok) throw new Error(`Could not save the note (${resp.status})`);
+  return resp.json();
+}
+
+export async function updateNote(
+  noteId: string,
+  content: string,
+): Promise<MarginNote> {
+  const resp = await fetch(`/api/notes/${noteId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!resp.ok) throw new Error(`Could not update the note (${resp.status})`);
+  return resp.json();
+}
+
+export async function deleteNote(noteId: string): Promise<void> {
+  const resp = await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`Could not delete the note (${resp.status})`);
+}
+
+/** Passage ids of this work the caller has ever marked read. Signed out →
+    empty list. */
+export async function fetchReadIds(work: string): Promise<string[]> {
+  const resp = await fetch(`/api/reads?work=${encodeURIComponent(work)}`);
+  if (resp.status === 401) return [];
+  if (!resp.ok) throw new Error(`Could not load reading history (${resp.status})`);
+  return resp.json();
+}
+
+/** Record today's reading of a part. Returns how many passages were newly
+    recorded (0 = already marked today). */
+export async function markRead(work: string, part: string): Promise<number> {
+  const resp = await fetch("/api/reads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ work, part }),
+  });
+  if (!resp.ok) throw new Error(`Could not mark as read (${resp.status})`);
+  return (await resp.json()).marked;
+}
+
 export async function fetchPassage(passageId: string): Promise<Passage> {
   const resp = await fetch(`/api/passages/${passageId}`);
   if (!resp.ok) throw new Error(`Could not load the passage (${resp.status})`);

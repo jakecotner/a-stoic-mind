@@ -10,6 +10,7 @@ from app.models.conversation import Conversation, Message
 from app.models.daily import DailyPassage
 from app.models.journal import JournalEntry
 from app.models.passage import Passage, PassageBreakdown
+from app.models.reading import Note, PassageRead
 from app.models.usage import LlmUsage
 from app.models.user import User
 
@@ -20,7 +21,9 @@ __all__ = [
     "JournalEntry",
     "LlmUsage",
     "Message",
+    "Note",
     "Passage",
     "PassageBreakdown",
+    "PassageRead",
     "User",
 ]

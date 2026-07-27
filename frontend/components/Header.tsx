@@ -16,22 +16,30 @@ export default function Header() {
         <Link href="/" className="font-semibold">
           A Stoic Mind
         </Link>
-        {user && (
-          <nav className="flex gap-4 text-sm">
-            <Link
-              href="/chat"
-              className={pathname === "/chat" ? "font-medium" : "opacity-70 hover:opacity-100"}
-            >
-              Chat
-            </Link>
-            <Link
-              href="/account"
-              className={pathname === "/account" ? "font-medium" : "opacity-70 hover:opacity-100"}
-            >
-              Account
-            </Link>
-          </nav>
-        )}
+        <nav className="flex gap-4 text-sm">
+          <Link
+            href="/library"
+            className={pathname.startsWith("/library") ? "font-medium" : "opacity-70 hover:opacity-100"}
+          >
+            Library
+          </Link>
+          {user && (
+            <>
+              <Link
+                href="/chat"
+                className={pathname === "/chat" ? "font-medium" : "opacity-70 hover:opacity-100"}
+              >
+                Chat
+              </Link>
+              <Link
+                href="/account"
+                className={pathname === "/account" ? "font-medium" : "opacity-70 hover:opacity-100"}
+              >
+                Account
+              </Link>
+            </>
+          )}
+        </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
           {loading ? null : user ? (
             <>
