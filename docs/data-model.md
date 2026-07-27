@@ -93,6 +93,14 @@ erDiagram
         string original_source "nullable"
         datetime created_at
     }
+    practice_intentions {
+        uuid id PK
+        uuid user_id FK,UK
+        int minutes_per_day
+        time time_of_day "nullable"
+        datetime created_at
+        datetime updated_at
+    }
     users {
         uuid id PK
         string email UK
@@ -116,4 +124,5 @@ erDiagram
     passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
     users ||--o{ passage_reads : "user_id · CASCADE"
     passages ||--o{ passage_reads : "passage_id · CASCADE"
+    users ||--o{ practice_intentions : "user_id · CASCADE"
 ```

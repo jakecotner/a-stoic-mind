@@ -26,6 +26,12 @@ export default function Header() {
           {user && (
             <>
               <Link
+                href="/practice"
+                className={pathname === "/practice" ? "font-medium" : "opacity-70 hover:opacity-100"}
+              >
+                Practice
+              </Link>
+              <Link
                 href="/chat"
                 className={pathname === "/chat" ? "font-medium" : "opacity-70 hover:opacity-100"}
               >

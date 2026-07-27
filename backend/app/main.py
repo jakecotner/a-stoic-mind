@@ -11,6 +11,7 @@ from app.routes.chat import router as chat_router
 from app.routes.daily import router as daily_router
 from app.routes.journal import router as journal_router
 from app.routes.passage import router as passage_router
+from app.routes.practice import router as practice_router
 from app.routes.reading import router as reading_router
 from app.schemas.meta import MetaOut
 
@@ -62,6 +63,7 @@ app.include_router(auth_router)
 app.include_router(daily_router)
 app.include_router(journal_router)
 app.include_router(passage_router)
+app.include_router(practice_router)
 app.include_router(reading_router)
 app.include_router(chat_router)  # optional module — see app/services/chat.py
 app.include_router(billing_router)

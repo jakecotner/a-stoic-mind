@@ -283,6 +283,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/practice/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Month View */
+        get: operations["month_view_api_practice_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Day Detail */
+        get: operations["day_detail_api_practice_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/intention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Intention */
+        get: operations["get_intention_api_practice_intention_get"];
+        /** Set Intention */
+        put: operations["set_intention_api_practice_intention_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/works/toc": {
         parameters: {
             query?: never;
@@ -636,6 +688,26 @@ export interface components {
             /** Token */
             token: string;
         };
+        /**
+         * CalendarDayOut
+         * @description One day of the month grid: the shared daily passage plus counts of
+         *     the caller's own activity.
+         */
+        CalendarDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Daily Reference */
+            daily_reference: string | null;
+            /** Journal Count */
+            journal_count: number;
+            /** Note Count */
+            note_count: number;
+            /** Read Count */
+            read_count: number;
+        };
         /** ChatRequest */
         ChatRequest: {
             /** Message */
@@ -691,6 +763,21 @@ export interface components {
             /** Breakdown */
             breakdown: string | null;
         };
+        /** DayDetailOut */
+        DayDetailOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            daily: components["schemas"]["PassageOut"] | null;
+            /** Journal */
+            journal: components["schemas"]["JournalEntryOut"][];
+            /** Notes */
+            notes: components["schemas"]["NoteWithPassageOut"][];
+            /** Reads */
+            reads: components["schemas"]["ReadWorkOut"][];
+        };
         /** ErrorModel */
         ErrorModel: {
             /** Detail */
@@ -702,6 +789,20 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IntentionIn */
+        IntentionIn: {
+            /** Minutes Per Day */
+            minutes_per_day: number;
+            /** Time Of Day */
+            time_of_day?: string | null;
+        };
+        /** IntentionOut */
+        IntentionOut: {
+            /** Minutes Per Day */
+            minutes_per_day: number;
+            /** Time Of Day */
+            time_of_day: string | null;
         };
         /** JournalEntryCreate */
         JournalEntryCreate: {
@@ -824,6 +925,18 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** NoteWithPassageOut */
+        NoteWithPassageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Content */
+            content: string;
+            /** Passage Reference */
+            passage_reference: string | null;
+        };
         /** PassageOut */
         PassageOut: {
             /**
@@ -845,6 +958,15 @@ export interface components {
             text: string;
             /** Original Language */
             original_language: ("grc" | "la") | null;
+        };
+        /** ReadWorkOut */
+        ReadWorkOut: {
+            /** Work */
+            work: string;
+            /** Author */
+            author: string;
+            /** Passage Count */
+            passage_count: number;
         };
         /** TierUpdate */
         TierUpdate: {
@@ -1593,6 +1715,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PassageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    month_view_api_practice_calendar_get: {
+        parameters: {
+            query: {
+                year: number;
+                month: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarDayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    day_detail_api_practice_day_get: {
+        parameters: {
+            query: {
+                on: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_intention_api_practice_intention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentionOut"] | null;
+                };
+            };
+        };
+    };
+    set_intention_api_practice_intention_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntentionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentionOut"];
                 };
             };
             /** @description Validation Error */

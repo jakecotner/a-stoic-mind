@@ -306,6 +306,49 @@ export async function deleteJournalEntry(entryId: string): Promise<void> {
   if (!resp.ok) throw new Error(`Could not delete the entry (${resp.status})`);
 }
 
+// --- Practice (mirrors backend app/routes/practice.py — authed, private)
+
+export type CalendarDay = Schema<"CalendarDayOut">;
+export type DayDetail = Schema<"DayDetailOut">;
+export type Intention = Schema<"IntentionOut">;
+
+export async function fetchCalendar(
+  year: number,
+  month: number,
+): Promise<CalendarDay[]> {
+  const resp = await fetch(`/api/practice/calendar?year=${year}&month=${month}`);
+  if (!resp.ok) throw new Error(`Could not load the calendar (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchDayDetail(on: string): Promise<DayDetail> {
+  const resp = await fetch(`/api/practice/day?on=${on}`);
+  if (!resp.ok) throw new Error(`Could not load that day (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchIntention(): Promise<Intention | null> {
+  const resp = await fetch("/api/practice/intention");
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+export async function saveIntention(
+  minutesPerDay: number,
+  timeOfDay: string | null,
+): Promise<Intention> {
+  const resp = await fetch("/api/practice/intention", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      minutes_per_day: minutesPerDay,
+      time_of_day: timeOfDay,
+    }),
+  });
+  if (!resp.ok) throw new Error(`Could not save your intention (${resp.status})`);
+  return resp.json();
+}
+
 // --- Chat (optional module — mirrors backend app/services/chat.py +
 // app/routes/chat.py; delete together)
 
