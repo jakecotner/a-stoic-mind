@@ -1,10 +1,13 @@
 "use client";
 
-// The practice calendar: a month of your practice at a glance — the shared
-// daily passage plus your own journaling, margin notes, and reading — with
-// the standing intention (minutes per day, preferred time) at the top.
+// The practice page, split like the rest of the app: the month calendar on
+// the left — a month of your practice at a glance, with the standing
+// intention (minutes per day, preferred time) above it — and the selected
+// day's detail on the right (the shared daily passage plus your own
+// journaling, margin notes, and reading).
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BoldMarkdown from "@/components/BoldMarkdown";
 import {
   fetchCalendar,
   fetchDayDetail,
@@ -17,8 +20,18 @@ import {
 import { useUser } from "@/lib/useUser";
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -144,7 +157,7 @@ function DayPanel({ detail }: { detail: DayDetail }) {
     detail.reads.length === 0;
 
   return (
-    <section className="rounded-xl border border-black/10 p-5 dark:border-white/15">
+    <section>
       <h2 className="mb-4 text-lg font-medium">{title}</h2>
 
       {detail.daily && (
@@ -184,12 +197,22 @@ function DayPanel({ detail }: { detail: DayDetail }) {
           </h3>
           <div className="flex flex-col gap-2">
             {detail.journal.map((e) => (
-              <p
+              <div
                 key={e.id}
-                className="whitespace-pre-line rounded-lg border border-black/10 p-3 text-sm leading-relaxed dark:border-white/15"
+                className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
               >
-                {e.content}
-              </p>
+                <p className="whitespace-pre-line leading-relaxed">
+                  {e.content}
+                </p>
+                {e.reflection && (
+                  <div className="mt-3 border-l-2 border-black/15 pl-3 dark:border-white/25">
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-50">
+                      Reflection
+                    </p>
+                    <BoldMarkdown text={e.reflection} />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -207,9 +230,13 @@ function DayPanel({ detail }: { detail: DayDetail }) {
                 className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
               >
                 {n.passage_reference && (
-                  <p className="mb-1 text-xs opacity-60">{n.passage_reference}</p>
+                  <p className="mb-1 text-xs opacity-60">
+                    {n.passage_reference}
+                  </p>
                 )}
-                <p className="whitespace-pre-line leading-relaxed">{n.content}</p>
+                <p className="whitespace-pre-line leading-relaxed">
+                  {n.content}
+                </p>
               </div>
             ))}
           </div>
@@ -274,90 +301,102 @@ export default function PracticePage() {
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Practice</h1>
+    <div className="mx-auto grid w-full max-w-6xl flex-1 gap-8 px-4 py-10 lg:grid-cols-2">
+      {/* Left: the intention and the month at a glance */}
+      <div className="flex flex-col gap-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Practice</h1>
 
-      <IntentionBar />
+        <IntentionBar />
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <button className={subtleButtonCls} onClick={() => shift(-1)}>
-            ← previous
-          </button>
-          <h2 className="font-medium">
-            {MONTHS[view.month - 1]} {view.year}
-          </h2>
-          <button className={subtleButtonCls} onClick={() => shift(1)}>
-            next →
-          </button>
-        </div>
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <button className={subtleButtonCls} onClick={() => shift(-1)}>
+              ← previous
+            </button>
+            <h2 className="font-medium">
+              {MONTHS[view.month - 1]} {view.year}
+            </h2>
+            <button className={subtleButtonCls} onClick={() => shift(1)}>
+              next →
+            </button>
+          </div>
 
-        <div className="grid grid-cols-7 gap-1 text-center text-xs opacity-60">
-          {WEEKDAYS.map((d) => (
-            <div key={d} className="py-1">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: firstWeekday }).map((_, i) => (
-            <div key={`blank-${i}`} />
-          ))}
-          {days.map((day) => {
-            const n = Number(day.date.slice(-2));
-            const isSelected = day.date === selected;
-            const isToday = day.date === todayStr;
-            return (
-              <button
-                key={day.date}
-                onClick={() => setSelected(day.date)}
-                title={day.daily_reference ?? undefined}
-                className={`flex min-h-16 flex-col items-start gap-1 rounded-lg border p-2 text-left text-sm ${
-                  isSelected
-                    ? "border-black/60 dark:border-white/70"
-                    : "border-black/10 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
-                }`}
-              >
-                <span className={isToday ? "font-semibold underline" : ""}>
-                  {n}
-                </span>
-                <span className="flex flex-wrap gap-1 text-[10px] leading-none">
-                  {day.read_count > 0 && (
-                    <span
-                      title={`${day.read_count} passages read`}
-                      className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
-                    >
-                      R
-                    </span>
-                  )}
-                  {day.journal_count > 0 && (
-                    <span
-                      title={`${day.journal_count} journal ${day.journal_count === 1 ? "entry" : "entries"}`}
-                      className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
-                    >
-                      J
-                    </span>
-                  )}
-                  {day.note_count > 0 && (
-                    <span
-                      title={`${day.note_count} margin ${day.note_count === 1 ? "note" : "notes"}`}
-                      className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
-                    >
-                      N
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-xs opacity-50">
-          R read · J journaled · N margin notes — hover a day for the daily
-          passage.
-        </p>
-      </section>
+          <div className="grid grid-cols-7 gap-1 text-center text-xs opacity-60">
+            {WEEKDAYS.map((d) => (
+              <div key={d} className="py-1">
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstWeekday }).map((_, i) => (
+              <div key={`blank-${i}`} />
+            ))}
+            {days.map((day) => {
+              const n = Number(day.date.slice(-2));
+              const isSelected = day.date === selected;
+              const isToday = day.date === todayStr;
+              return (
+                <button
+                  key={day.date}
+                  onClick={() => setSelected(day.date)}
+                  title={day.daily_reference ?? undefined}
+                  className={`flex min-h-16 flex-col items-start gap-1 rounded-lg border p-2 text-left text-sm ${
+                    isSelected
+                      ? "border-black/60 dark:border-white/70"
+                      : "border-black/10 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+                  }`}
+                >
+                  <span className={isToday ? "font-semibold underline" : ""}>
+                    {n}
+                  </span>
+                  <span className="flex flex-wrap gap-1 text-[10px] leading-none">
+                    {day.read_count > 0 && (
+                      <span
+                        title={`${day.read_count} passages read`}
+                        className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
+                      >
+                        R
+                      </span>
+                    )}
+                    {day.journal_count > 0 && (
+                      <span
+                        title={`${day.journal_count} journal ${day.journal_count === 1 ? "entry" : "entries"}`}
+                        className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
+                      >
+                        J
+                      </span>
+                    )}
+                    {day.note_count > 0 && (
+                      <span
+                        title={`${day.note_count} margin ${day.note_count === 1 ? "note" : "notes"}`}
+                        className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
+                      >
+                        N
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs opacity-50">
+            R read · J journaled · N margin notes — hover a day for the daily
+            passage.
+          </p>
+        </section>
+      </div>
 
-      {detail && <DayPanel detail={detail} />}
+      {/* Right: the selected day's detail */}
+      <div className="lg:border-l lg:border-black/10 lg:pl-8 dark:lg:border-white/15">
+        {detail ? (
+          <DayPanel detail={detail} />
+        ) : (
+          <p className="pt-2 text-sm opacity-60">
+            Select a day to see its passage and your practice.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
