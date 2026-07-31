@@ -59,8 +59,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
 
     anthropic_model: str = "claude-opus-4-8"
-    chat_effort: str = "medium"
-    chat_max_tokens: int = 8192
 
     # Free-tier monthly metered LLM turns (see app/services/usage.py). "plus"
     # tier and
@@ -91,12 +89,10 @@ class Settings(BaseSettings):
     # Error tracking. Unset: Sentry never initializes (dev default).
     sentry_dsn: str | None = None
 
-    history_max_messages: int = 20
-
     # Email verification (config flavor, not a module — see MODULES.md).
     # Off: registration is frictionless and the verify surface stays dark.
     # On: new accounts get a verification email; unverified users can sign
-    # in and look around, but metered/paid actions (chat turns, checkout)
+    # in and look around, but paid actions (checkout)
     # require a verified address, and the frontend shows a persistent
     # verify banner. Flip it any time — no schema change involved.
     require_email_verification: bool = False

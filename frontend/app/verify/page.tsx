@@ -47,7 +47,7 @@ function VerifyResult() {
     return (
       <p className="text-sm opacity-75">
         Email verified — you&apos;re all set.{" "}
-        <Link href={user ? "/chat" : "/login"} className="underline">
+        <Link href={user ? "/" : "/login"} className="underline">
           {user ? "Back to the app" : "Sign in"}
         </Link>
         .

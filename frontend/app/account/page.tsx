@@ -70,11 +70,9 @@ export default function AccountPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 text-sm">
-            <p>
-              Free plan
-              {billing.turns &&
-                ` — ${billing.turns.used} of ${billing.turns.limit} turns used this month`}
-            </p>
+            {/* billing.turns (metered LLM turns) is not shown: nothing
+                user-facing is metered since the chat module was removed. */}
+            <p>Free plan</p>
             <div className="flex gap-3">
               <button
                 className={buttonCls}

@@ -32,7 +32,7 @@ export default function LoginPage() {
       } else {
         await login(email, password);
         await refresh();
-        router.push("/chat");
+        router.push("/");
         router.refresh();
       }
     } catch (err) {

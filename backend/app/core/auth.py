@@ -4,7 +4,7 @@ Lives in core/ (not services/) because it's cross-cutting wiring that routes
 depend on for their auth dependencies; it composes services/email for the
 reset flow — the one sanctioned core→services import.
 
-The cookie transport means the web frontend's SSE fetch to /api/chat needs no
+The cookie transport means the web frontend's fetches need no
 Authorization-header plumbing — the browser attaches the cookie itself.
 
 The bearer transport serves a future mobile app: /api/auth/bearer/login
@@ -219,10 +219,10 @@ def require_plus(user: User, message: str) -> None:
 
 
 def ensure_verified(user: Optional[User]) -> None:
-    """The same gate for routes whose user is OPTIONAL (e.g. chat, where
-    anonymous use is allowed): a signed-in-but-unverified account gets a
-    structured 403 the frontend turns into a "check your inbox" nudge.
-    Anonymous requests pass — they're governed by the per-IP cap instead."""
+    """The same gate for routes whose user is OPTIONAL (anonymous use
+    allowed): a signed-in-but-unverified account gets a structured 403 the
+    frontend turns into a "check your inbox" nudge. Anonymous requests
+    pass — they're governed by the per-IP cap instead."""
     if (
         get_settings().require_email_verification
         and user is not None

@@ -74,7 +74,14 @@ Removal: delete the files above, remove the three imports/includes
 (models/__init__.py, main.py, Header link), remove the robots entries and
 the api.ts section. `crud/user.py::get_by_email` stays (generic).
 
-## chat (LLM conversations)
+## chat (LLM conversations) — REMOVED from this project (2026-07)
+
+The standalone chat surface was removed in favor of the journal as the
+first-class page. The file list below is kept as the reinstatement
+checklist. Metering was kept (billing reads it; the daily breakdown
+records global usage through it), and `services/llm.py` was kept for the
+daily-passage breakdown. The account page hides the "turns used" line
+while nothing user-facing is metered.
 
 Streaming SSE chat with persisted conversations; anonymous taste allowance.
 Needs the metering module.

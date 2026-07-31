@@ -13,6 +13,7 @@ from app.schemas.journal import (
     JournalEntryCreate,
     JournalEntryOut,
     JournalEntryUpdate,
+    JournalStatsOut,
 )
 from app.services import journal as journal_service
 
@@ -26,6 +27,15 @@ def create_entry(
     db: Session = Depends(get_db),
 ):
     return journal_service.create_entry(db, user, req.content, req.passage_id)
+
+
+@router.get("/stats", response_model=JournalStatsOut)
+def journal_stats(
+    user: User = Depends(current_active_user),
+    db: Session = Depends(get_db),
+):
+    total, streak = journal_service.stats(db, user)
+    return JournalStatsOut(total_entries=total, streak_days=streak)
 
 
 @router.get("", response_model=list[JournalEntryOut])

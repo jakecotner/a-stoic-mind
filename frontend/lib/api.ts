@@ -1,7 +1,6 @@
 // API client. All paths are relative — in dev and prod alike the browser
 // talks to the Next origin, and next.config rewrites proxy /api/* to
-// FastAPI, so the httponly session cookie rides along automatically
-// (including on the streaming chat fetch below).
+// FastAPI, so the httponly session cookie rides along automatically.
 //
 // Payload types come from lib/api-types.d.ts, generated from the backend's
 // OpenAPI schema — after changing a backend response model, run
@@ -266,6 +265,14 @@ export async function fetchPassage(passageId: string): Promise<Passage> {
 // --- Journal (mirrors backend app/routes/journal.py — authed, private)
 
 export type JournalEntry = Schema<"JournalEntryOut">;
+export type JournalStats = Schema<"JournalStatsOut">;
+
+/** Total entries + current daily streak. Signed out / error → null. */
+export async function fetchJournalStats(): Promise<JournalStats | null> {
+  const resp = await fetch("/api/journal/stats");
+  if (!resp.ok) return null;
+  return resp.json();
+}
 
 /** Entries for one day (default: today). Signed out → empty list. */
 export async function fetchJournal(on?: string): Promise<JournalEntry[]> {
@@ -347,161 +354,6 @@ export async function saveIntention(
   });
   if (!resp.ok) throw new Error(`Could not save your intention (${resp.status})`);
   return resp.json();
-}
-
-// --- Chat (optional module — mirrors backend app/services/chat.py +
-// app/routes/chat.py; delete together)
-
-export type ChatMessage = Schema<"MessageOut">;
-export type ConversationSummary = Schema<"ConversationSummary">;
-export type ConversationDetail = Schema<"ConversationOut">;
-
-/** Payload of a 402 from /api/chat (free-tier turn cap). */
-export interface CapInfo {
-  used: number | null;
-  limit: number | null;
-  message: string | null;
-  /** "free" (signed-in monthly cap) or "anonymous" (per-IP taste allowance). */
-  scope: string | null;
-}
-
-export interface StreamHandlers {
-  onMeta: (meta: { conversation_id: string }) => void;
-  onDelta: (text: string) => void;
-  onError: (message: string) => void;
-  onDone: () => void;
-  /** Free-tier monthly turn cap reached (HTTP 402). Optional; without it the
-      cap surfaces through onError as plain text. */
-  onCapHit?: (info: CapInfo) => void;
-}
-
-async function parseCapInfo(resp: Response): Promise<CapInfo> {
-  const info: CapInfo = { used: null, limit: null, message: null, scope: null };
-  try {
-    const detail = (await resp.json()).detail;
-    if (typeof detail === "string") info.message = detail;
-    else if (detail) {
-      info.used = detail.used ?? null;
-      info.limit = detail.limit ?? null;
-      info.message = detail.message ?? null;
-      info.scope = detail.scope ?? null;
-    }
-  } catch {
-    /* no payload; the caller falls back to generic copy */
-  }
-  return info;
-}
-
-/** Consume an SSE response body, dispatching events to handlers. */
-async function consumeSse(
-  resp: Response,
-  on: {
-    meta?: (data: { conversation_id: string }) => void;
-    delta: (text: string) => void;
-    error: (message: string) => void;
-    done: () => void;
-  },
-): Promise<void> {
-  const reader = resp.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  const handleBlock = (block: string) => {
-    let event = "message";
-    const dataLines: string[] = [];
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event: ")) event = line.slice(7).trim();
-      else if (line.startsWith("data: ")) dataLines.push(line.slice(6));
-    }
-    if (dataLines.length === 0) return;
-    const data = JSON.parse(dataLines.join("\n"));
-    if (event === "meta") on.meta?.(data);
-    else if (event === "error") on.error(data.error);
-    else if (event === "done") on.done();
-    else on.delta(data); // default event: a text delta (JSON string)
-  };
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const block = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      if (block.trim()) handleBlock(block);
-    }
-  }
-}
-
-/** POST /api/chat and consume the SSE response. */
-export async function streamChat(
-  message: string,
-  conversationId: string | null,
-  handlers: StreamHandlers,
-): Promise<void> {
-  let resp: Response;
-  try {
-    resp = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        conversation_id: conversationId ?? undefined,
-      }),
-    });
-  } catch {
-    handlers.onError("Could not reach the server — try again in a moment.");
-    handlers.onDone();
-    return;
-  }
-  if (resp.status === 402) {
-    const info = await parseCapInfo(resp);
-    if (handlers.onCapHit) handlers.onCapHit(info);
-    else handlers.onError(info.message ?? "You've used this month's free turns.");
-    handlers.onDone();
-    return;
-  }
-  if (resp.status === 403) {
-    // verification_required (REQUIRE_EMAIL_VERIFICATION on, account unverified)
-    const info = await parseCapInfo(resp);
-    handlers.onError(
-      info.message ?? "Verify your email address to continue.",
-    );
-    handlers.onDone();
-    return;
-  }
-  if (!resp.ok || !resp.body) {
-    handlers.onError(`Request failed (${resp.status})`);
-    handlers.onDone();
-    return;
-  }
-  await consumeSse(resp, {
-    meta: handlers.onMeta,
-    delta: handlers.onDelta,
-    error: handlers.onError,
-    done: handlers.onDone,
-  });
-}
-
-export async function fetchConversations(): Promise<ConversationSummary[]> {
-  const resp = await fetch("/api/conversations");
-  if (resp.status === 401) return [];
-  if (!resp.ok) throw new Error(`Could not load conversations (${resp.status})`);
-  return resp.json();
-}
-
-export async function fetchConversation(
-  id: string,
-): Promise<ConversationDetail | null> {
-  const resp = await fetch(`/api/conversations/${id}`);
-  if (!resp.ok) return null;
-  return resp.json();
-}
-
-export async function deleteConversation(id: string): Promise<void> {
-  const resp = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-  if (!resp.ok) throw new Error(`Could not delete conversation (${resp.status})`);
 }
 
 // --- Billing. Every call degrades gracefully while Stripe isn't configured:

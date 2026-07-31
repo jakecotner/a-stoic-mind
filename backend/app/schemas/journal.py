@@ -25,3 +25,10 @@ class JournalEntryOut(BaseModel):
     content: str
     created_at: datetime
     updated_at: datetime
+
+
+class JournalStatsOut(BaseModel):
+    total_entries: int
+    # Consecutive days with at least one entry, ending today (or yesterday
+    # when today has no entry yet). 0 = no current streak.
+    streak_days: int

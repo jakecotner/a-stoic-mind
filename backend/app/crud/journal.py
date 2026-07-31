@@ -2,7 +2,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import JournalEntry
@@ -34,6 +34,29 @@ def for_user_on(db: Session, user_id: uuid.UUID, on: date) -> list[JournalEntry]
             select(JournalEntry)
             .where(JournalEntry.user_id == user_id, JournalEntry.date == on)
             .order_by(JournalEntry.created_at)
+        )
+    )
+
+
+def count_for_user(db: Session, user_id: uuid.UUID) -> int:
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(JournalEntry)
+            .where(JournalEntry.user_id == user_id)
+        )
+        or 0
+    )
+
+
+def distinct_dates_desc(db: Session, user_id: uuid.UUID) -> list[date]:
+    """Every date the user wrote at least one entry, newest first."""
+    return list(
+        db.scalars(
+            select(JournalEntry.date)
+            .where(JournalEntry.user_id == user_id)
+            .distinct()
+            .order_by(JournalEntry.date.desc())
         )
     )
 

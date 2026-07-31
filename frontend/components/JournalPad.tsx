@@ -9,8 +9,10 @@ import {
   createJournalEntry,
   deleteJournalEntry,
   fetchJournal,
+  fetchJournalStats,
   updateJournalEntry,
   type JournalEntry,
+  type JournalStats,
 } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 
@@ -19,7 +21,7 @@ const buttonCls =
 const subtleButtonCls =
   "rounded border border-black/15 px-2 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
 
-function EntryCard({
+export function EntryCard({
   entry,
   onChanged,
 }: {
@@ -122,6 +124,7 @@ export default function JournalPad({
 }) {
   const { user, loading } = useUser();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [stats, setStats] = useState<JournalStats | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +132,9 @@ export default function JournalPad({
   const reload = useCallback(() => {
     fetchJournal()
       .then(setEntries)
+      .catch(() => {});
+    fetchJournalStats()
+      .then(setStats)
       .catch(() => {});
   }, []);
 
@@ -162,7 +168,16 @@ export default function JournalPad({
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <h2 className="text-lg font-medium">Your journal</h2>
+      <div className="flex items-baseline gap-3">
+        <h2 className="text-lg font-medium">Your journal</h2>
+        {stats && stats.total_entries > 0 && (
+          <span className="text-xs opacity-60">
+            {stats.total_entries}{" "}
+            {stats.total_entries === 1 ? "entry" : "entries"}
+            {stats.streak_days > 1 && <> &middot; {stats.streak_days}-day streak</>}
+          </span>
+        )}
+      </div>
       <textarea
         className="min-h-40 w-full resize-y rounded-xl border border-black/15 bg-transparent p-4 text-sm leading-relaxed outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/50"
         placeholder="Write about the passage, or whatever is on your mind…"
