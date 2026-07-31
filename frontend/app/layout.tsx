@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Header from "@/components/Header";
 import VerifyBanner from "@/components/VerifyBanner";
+import { UserProvider } from "@/lib/useUser";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,9 +37,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <Header />
-        <VerifyBanner />
-        <main className="flex-1 flex flex-col">{children}</main>
+        <UserProvider>
+          <Header />
+          <VerifyBanner />
+          <main className="flex-1 flex flex-col">{children}</main>
+        </UserProvider>
       </body>
     </html>
   );

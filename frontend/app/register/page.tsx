@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { login, register } from "@/lib/api";
+import { useUser } from "@/lib/useUser";
 
 const inputCls =
   "w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/50";
@@ -12,6 +13,7 @@ const buttonCls =
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { refresh } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +26,7 @@ export default function RegisterPage() {
     try {
       await register(email, password);
       await login(email, password);
+      await refresh();
       router.push("/chat");
       router.refresh();
     } catch (err) {
