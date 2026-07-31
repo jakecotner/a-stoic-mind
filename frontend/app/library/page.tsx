@@ -4,8 +4,9 @@ import { getWorks } from "@/lib/corpus-server";
 import { workSlug } from "@/lib/library";
 
 // Rendered at request time: the backend is only reachable at runtime (on
-// Railway the private network doesn't exist during builds). The corpus
-// fetches themselves stay cached for an hour (see lib/corpus-server.ts).
+// Railway the private network doesn't exist during builds). Note
+// force-dynamic also bypasses the fetch cache in lib/corpus-server.ts —
+// each request re-queries the backend, which is a cheap indexed read.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {

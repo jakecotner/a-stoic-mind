@@ -8,6 +8,13 @@ import type { Daily } from "@/lib/api";
 // so it talks to the backend origin directly, like lib/auth-server.ts.
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
 
+// Rendered at request time: the backend is only reachable at runtime (on
+// Railway the private network doesn't exist during builds), and a static
+// prerender would bake the "passage unavailable" fallback into the page.
+// The daily lookup is one indexed query — the LLM breakdown is cached in
+// the backend's passage_breakdowns table.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   description:
     "A Stoic Mind — read a hand-picked passage from the Stoic classics each day, with a grounded reflection, and keep a journal alongside your practice.",
