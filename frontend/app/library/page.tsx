@@ -3,6 +3,11 @@ import Link from "next/link";
 import { getWorks } from "@/lib/corpus-server";
 import { workSlug } from "@/lib/library";
 
+// Rendered at request time: the backend is only reachable at runtime (on
+// Railway the private network doesn't exist during builds). The corpus
+// fetches themselves stay cached for an hour (see lib/corpus-server.ts).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Library — A Stoic Mind",
   description:

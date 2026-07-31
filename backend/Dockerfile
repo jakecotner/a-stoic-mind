@@ -16,4 +16,4 @@ EXPOSE 8000
 # Two workers double the sync-endpoint threadpool and survive one worker
 # dying; in-process state (anon rate windows) is per-worker, which just
 # means slightly looser caps — acceptable.
-CMD ["sh", "-c", "python -m alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]
+CMD ["sh", "-c", "python -m alembic upgrade head && python -m uvicorn app.main:app --host :: --port ${PORT:-8000} --workers 2"]
