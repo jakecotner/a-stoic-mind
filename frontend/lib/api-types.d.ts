@@ -227,6 +227,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/journal/{entry_id}/reflection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reflect On Entry
+         * @description Generate (or return the stored) LLM reflection for an entry.
+         *     Metered — 402 with a turn_cap detail when the free allowance is spent;
+         *     403 verification_required when the email-verification flavor gates it.
+         */
+        post: operations["reflect_on_entry_api_journal__entry_id__reflection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/journal/{entry_id}": {
         parameters: {
             query?: never;
@@ -292,6 +314,27 @@ export interface paths {
         };
         /** Get Passage */
         get: operations["get_passage_api_passages__passage_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages/{passage_id}/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Breakdown
+         * @description The passage's breakdown — cached after the first view, so the first
+         *     request may take several seconds while it's written.
+         */
+        get: operations["get_breakdown_api_passages__passage_id__breakdown_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -654,6 +697,20 @@ export interface components {
             token: string;
         };
         /**
+         * BreakdownOut
+         * @description A passage's cached LLM breakdown. Null when generation is
+         *     unavailable (no LLM key, or the call failed) — never an error.
+         */
+        BreakdownOut: {
+            /**
+             * Passage Id
+             * Format: uuid
+             */
+            passage_id: string;
+            /** Breakdown */
+            breakdown: string | null;
+        };
+        /**
          * CalendarDayOut
          * @description One day of the month grid: the shared daily passage plus counts of
          *     the caller's own activity.
@@ -753,6 +810,8 @@ export interface components {
             date: string;
             /** Content */
             content: string;
+            /** Reflection */
+            reflection: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1514,6 +1573,37 @@ export interface operations {
             };
         };
     };
+    reflect_on_entry_api_journal__entry_id__reflection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_entry_api_journal__entry_id__delete: {
         parameters: {
             query?: never;
@@ -1648,6 +1738,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PassageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_breakdown_api_passages__passage_id__breakdown_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BreakdownOut"];
                 };
             };
             /** @description Validation Error */

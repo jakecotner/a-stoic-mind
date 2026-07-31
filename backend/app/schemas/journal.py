@@ -23,6 +23,9 @@ class JournalEntryOut(BaseModel):
     passage_id: uuid.UUID | None
     date: date
     content: str
+    # The LLM's response to the entry. Null until generated (or when
+    # generation was unavailable) — the entry always stands on its own.
+    reflection: str | None
     created_at: datetime
     updated_at: datetime
 

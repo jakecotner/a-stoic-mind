@@ -27,3 +27,11 @@ class PassageOut(BaseModel):
     translator: str
     text: str
     original_language: Literal["grc", "la"] | None
+
+
+class BreakdownOut(BaseModel):
+    """A passage's cached LLM breakdown. Null when generation is
+    unavailable (no LLM key, or the call failed) — never an error."""
+
+    passage_id: uuid.UUID
+    breakdown: str | None

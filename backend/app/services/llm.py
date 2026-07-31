@@ -1,8 +1,8 @@
-"""Claude integration: the daily-passage breakdown.
+"""Claude integration: passage breakdowns and journal-entry reflections.
 
 System prompts are byte-stable and carry a cache_control breakpoint —
-prompt caching is a prefix match, so all volatile content (the passage)
-goes in the messages array after it.
+prompt caching is a prefix match, so all volatile content (the passage,
+the entry text) goes in the messages array after it.
 """
 
 import anthropic
@@ -55,6 +55,60 @@ def write_breakdown(passage: Passage) -> tuple[str, anthropic.types.Message]:
             {
                 "type": "text",
                 "text": BREAKDOWN_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        messages=[{"role": "user", "content": "\n\n---\n\n".join(parts)}],
+    )
+    text = "".join(b.text for b in message.content if b.type == "text")
+    return text, message
+
+
+# DRAFT VOICE — the product owner owns this copy; adjust freely. Keep it
+# byte-stable at runtime (see module docstring).
+REFLECTION_SYSTEM_PROMPT = """\
+You respond to private journal entries in "A Stoic Mind", a reading
+companion for the classic Stoic texts. The person has just written an
+entry — sometimes about the day's passage, sometimes about whatever is on
+their mind. Respond as a steady Stoic companion:
+
+- Begin from what they actually wrote — reflect its heart back in one
+  plain sentence, without praise-padding.
+- Offer one or two Stoic angles on it, grounded in the classical texts
+  (Marcus Aurelius, Epictetus, Seneca). Cite passages by their customary
+  references — e.g. Enchiridion 5, Meditations 4.7, Letters 91 — only when
+  they genuinely speak to what was written.
+- When the day's passage is provided and relevant, prefer connecting to it.
+- Be warm, direct, and concrete. No therapy-speak, no platitudes, no
+  greeting, no sign-off, no questions back.
+
+Aim for 100-180 words.
+"""
+
+
+def write_reflection(
+    entry_content: str, passage: Passage | None
+) -> tuple[str, anthropic.types.Message]:
+    """One-shot reflection on a journal entry, optionally anchored to the
+    passage the entry was written against. Returns (text, api message) —
+    the caller records usage and stores the text on the entry."""
+    settings = get_settings()
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    parts = []
+    if passage is not None:
+        parts.append(
+            f"The day's passage — {passage.reference} ({passage.author}, "
+            f"{passage.work}):\n\n{passage.text}"
+        )
+    parts.append(f"The journal entry:\n\n{entry_content}")
+    message = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=1024,
+        system=[
+            {
+                "type": "text",
+                "text": REFLECTION_SYSTEM_PROMPT,
                 "cache_control": {"type": "ephemeral"},
             }
         ],

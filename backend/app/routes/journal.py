@@ -47,6 +47,18 @@ def list_entries(
     return journal_crud.for_user_on(db, user.id, on if on is not None else date.today())
 
 
+@router.post("/{entry_id}/reflection", response_model=JournalEntryOut)
+def reflect_on_entry(
+    entry_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Generate (or return the stored) LLM reflection for an entry.
+    Metered — 402 with a turn_cap detail when the free allowance is spent;
+    403 verification_required when the email-verification flavor gates it."""
+    return journal_service.reflect_on_entry(db, user, entry_id)
+
+
 @router.patch("/{entry_id}", response_model=JournalEntryOut)
 def update_entry(
     entry_id: uuid.UUID,

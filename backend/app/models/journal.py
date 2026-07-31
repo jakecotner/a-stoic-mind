@@ -9,7 +9,7 @@ the day, a note lives in a passage's margin.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +37,13 @@ class JournalEntry(Base):
     )
     date: Mapped[date] = mapped_column(Date)
     content: Mapped[str] = mapped_column(Text)
+    # The LLM's response to the entry, written once shortly after saving
+    # (metered — see services/journal.py::reflect_on_entry). NULL until
+    # generated; stays as written when the entry is later edited.
+    reflection: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reflection_model: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

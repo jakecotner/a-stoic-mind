@@ -256,6 +256,17 @@ export async function markRead(work: string, part: string): Promise<number> {
   return (await resp.json()).marked;
 }
 
+export type Breakdown = Schema<"BreakdownOut">;
+
+/** A passage's breakdown — generated and cached on first view, so the
+    first request for a passage can take several seconds. `breakdown` is
+    null when generation is unavailable. */
+export async function fetchBreakdown(passageId: string): Promise<Breakdown> {
+  const resp = await fetch(`/api/passages/${passageId}/breakdown`);
+  if (!resp.ok) throw new Error(`Could not load the breakdown (${resp.status})`);
+  return resp.json();
+}
+
 export async function fetchPassage(passageId: string): Promise<Passage> {
   const resp = await fetch(`/api/passages/${passageId}`);
   if (!resp.ok) throw new Error(`Could not load the passage (${resp.status})`);
@@ -311,6 +322,45 @@ export async function updateJournalEntry(
 export async function deleteJournalEntry(entryId: string): Promise<void> {
   const resp = await fetch(`/api/journal/${entryId}`, { method: "DELETE" });
   if (!resp.ok) throw new Error(`Could not delete the entry (${resp.status})`);
+}
+
+/** The free monthly reflection allowance is spent (HTTP 402). */
+export class ReflectionCapError extends Error {
+  used: number | null;
+  limit: number | null;
+  constructor(used: number | null, limit: number | null) {
+    super("Monthly reflection allowance reached");
+    this.used = used;
+    this.limit = limit;
+  }
+}
+
+/** Generate (or fetch the stored) reflection for an entry. Throws
+    ReflectionCapError on the free-tier cap; a plain Error otherwise
+    (verification required, generation unavailable, ...). */
+export async function reflectOnEntry(entryId: string): Promise<JournalEntry> {
+  const resp = await fetch(`/api/journal/${entryId}/reflection`, {
+    method: "POST",
+  });
+  if (resp.status === 402) {
+    let used: number | null = null;
+    let limit: number | null = null;
+    try {
+      const detail = (await resp.json()).detail;
+      used = detail?.used ?? null;
+      limit = detail?.limit ?? null;
+    } catch {
+      /* fall through with nulls */
+    }
+    throw new ReflectionCapError(used, limit);
+  }
+  if (resp.status === 403) {
+    throw new Error("Verify your email address to get reflections.");
+  }
+  if (!resp.ok) {
+    throw new Error("Reflections aren't available right now.");
+  }
+  return resp.json();
 }
 
 // --- Practice (mirrors backend app/routes/practice.py — authed, private)

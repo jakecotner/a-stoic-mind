@@ -68,6 +68,16 @@ def update(db: Session, entry: JournalEntry, content: str) -> JournalEntry:
     return entry
 
 
+def set_reflection(
+    db: Session, entry: JournalEntry, text: str, model: str
+) -> JournalEntry:
+    entry.reflection = text
+    entry.reflection_model = model
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 def delete(db: Session, entry: JournalEntry) -> None:
     db.delete(entry)
     db.commit()

@@ -5,11 +5,14 @@
 // pad: write freely, and the day's entries collect beneath.
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import BoldMarkdown from "@/components/BoldMarkdown";
 import {
   createJournalEntry,
   deleteJournalEntry,
   fetchJournal,
   fetchJournalStats,
+  reflectOnEntry,
+  ReflectionCapError,
   updateJournalEntry,
   type JournalEntry,
   type JournalStats,
@@ -24,9 +27,12 @@ const subtleButtonCls =
 export function EntryCard({
   entry,
   onChanged,
+  reflecting = false,
 }: {
   entry: JournalEntry;
   onChanged: () => void;
+  /** True while this entry's reflection is being written. */
+  reflecting?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(entry.content);
@@ -113,6 +119,16 @@ export function EntryCard({
         </p>
       )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {entry.reflection ? (
+        <div className="mt-3 border-l-2 border-black/15 pl-3 dark:border-white/25">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-50">
+            Reflection
+          </p>
+          <BoldMarkdown text={entry.reflection} />
+        </div>
+      ) : reflecting ? (
+        <p className="mt-3 text-xs italic opacity-50">Reflecting…</p>
+      ) : null}
     </div>
   );
 }
@@ -128,6 +144,10 @@ export default function JournalPad({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The entry whose reflection is currently being written, and the quiet
+  // notice shown when one couldn't be (cap hit, generation unavailable).
+  const [reflectingId, setReflectingId] = useState<string | null>(null);
+  const [reflectNotice, setReflectNotice] = useState<React.ReactNode>(null);
 
   const reload = useCallback(() => {
     fetchJournal()
@@ -191,14 +211,45 @@ export default function JournalPad({
           onClick={async () => {
             setBusy(true);
             setError(null);
+            setReflectNotice(null);
+            let saved: JournalEntry;
             try {
-              await createJournalEntry(draft.trim(), passageId);
+              saved = await createJournalEntry(draft.trim(), passageId);
               setDraft("");
               reload();
             } catch (e) {
               setError(e instanceof Error ? e.message : "Save failed");
-            } finally {
               setBusy(false);
+              return;
+            }
+            setBusy(false);
+            // The entry is safe; the reflection arrives when it arrives.
+            setReflectingId(saved.id);
+            try {
+              await reflectOnEntry(saved.id);
+              reload();
+            } catch (e) {
+              if (e instanceof ReflectionCapError) {
+                setReflectNotice(
+                  <>
+                    Your entry is saved. You&apos;ve used
+                    {e.limit != null ? ` all ${e.limit}` : " all"} of this
+                    month&apos;s free reflections —{" "}
+                    <Link href="/account" className="underline">
+                      upgrade to Plus
+                    </Link>{" "}
+                    for unlimited.
+                  </>,
+                );
+              } else {
+                setReflectNotice(
+                  e instanceof Error
+                    ? `Your entry is saved. ${e.message}`
+                    : "Your entry is saved; the reflection couldn't be written.",
+                );
+              }
+            } finally {
+              setReflectingId(null);
             }
           }}
         >
@@ -206,6 +257,11 @@ export default function JournalPad({
         </button>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      {reflectNotice && (
+        <p className="rounded-lg border border-black/15 px-3 py-2 text-xs opacity-80 dark:border-white/20">
+          {reflectNotice}
+        </p>
+      )}
 
       {entries.length > 0 && (
         <div className="mt-2 flex flex-col gap-3">
@@ -213,7 +269,12 @@ export default function JournalPad({
             Today
           </h3>
           {entries.map((entry) => (
-            <EntryCard key={entry.id} entry={entry} onChanged={reload} />
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              onChanged={reload}
+              reflecting={entry.id === reflectingId}
+            />
           ))}
         </div>
       )}

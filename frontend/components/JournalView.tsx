@@ -5,6 +5,7 @@
 // days — the left panel shows the passage that was assigned that day, the
 // right panel that day's entries (via the practice day-detail endpoint).
 import { useEffect, useState } from "react";
+import BoldMarkdown from "@/components/BoldMarkdown";
 import JournalPad, { EntryCard } from "@/components/JournalPad";
 import { fetchDayDetail, type Daily, type DayDetail } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
@@ -31,26 +32,6 @@ function labelFor(iso: string): string {
     month: "long",
     day: "numeric",
   });
-}
-
-/** The breakdown arrives as light markdown (bold **headings**). Render it
-    as paragraphs with bold spans — no markdown library for two markers. */
-function Reflection({ text }: { text: string }) {
-  return (
-    <div className="space-y-3 text-sm leading-relaxed opacity-90">
-      {text.split(/\n{2,}/).map((para, i) => (
-        <p key={i}>
-          {para.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
-            part.startsWith("**") && part.endsWith("**") ? (
-              <strong key={j}>{part.slice(2, -2)}</strong>
-            ) : (
-              <span key={j}>{part}</span>
-            ),
-          )}
-        </p>
-      ))}
-    </div>
-  );
 }
 
 function PassageArticle({
@@ -185,7 +166,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 Reflection
               </h2>
               {daily.breakdown ? (
-                <Reflection text={daily.breakdown} />
+                <BoldMarkdown text={daily.breakdown} />
               ) : (
                 <p className="text-sm opacity-60">
                   Today&apos;s reflection isn&apos;t available right now — the
