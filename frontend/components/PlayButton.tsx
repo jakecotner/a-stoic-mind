@@ -20,6 +20,26 @@ export const setVoicePref = (id: string): void => {
   else localStorage.removeItem(VOICE_KEY);
 };
 
+// Reading pace, per device (1 = as recorded). A playback-rate setting, not a
+// re-synthesis: the same cached audio plays faster or slower, pitch
+// preserved by the browser.
+const PACE_KEY = "astoicmind:tts-pace";
+export const PACE_MIN = 0.7;
+export const PACE_MAX = 1.5;
+
+export const getPacePref = (): number => {
+  if (typeof window === "undefined") return 1;
+  const v = Number(localStorage.getItem(PACE_KEY));
+  return v >= PACE_MIN && v <= PACE_MAX ? v : 1;
+};
+
+export const setPacePref = (pace: number): void => {
+  if (pace === 1) localStorage.removeItem(PACE_KEY);
+  else localStorage.setItem(PACE_KEY, String(pace));
+  // Adjust any narration already playing, so the slider is audible live.
+  if (active) active.playbackRate = pace;
+};
+
 /** The narration URL with the chosen voice applied. */
 function withVoice(src: string): string {
   const v = getVoicePref();
@@ -108,6 +128,7 @@ export function PlayButton({
       return;
     }
     const a = new Audio(withVoice(src));
+    a.playbackRate = getPacePref();
     active?.pause();
     active = a;
     audioRef.current = a;
