@@ -2,13 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getVoicePref, setVoicePref } from "@/components/PlayButton";
 import {
   deleteAccount,
   fetchBillingSummary,
+  fetchVoices,
   logout,
   openBillingPortal,
   startCheckout,
   type BillingSummary,
+  type Voice,
 } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 
@@ -21,6 +24,8 @@ export default function AccountPage() {
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voicePref, setVoicePrefState] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -29,6 +34,11 @@ export default function AccountPage() {
   useEffect(() => {
     if (user) void fetchBillingSummary().then(setBilling);
   }, [user]);
+
+  useEffect(() => {
+    setVoicePrefState(getVoicePref());
+    void fetchVoices().then(setVoices);
+  }, []);
 
   if (loading || !user) return null;
 
@@ -92,6 +102,43 @@ export default function AccountPage() {
           </div>
         )}
       </section>
+
+      {voices.length > 0 && (
+        <section className="rounded-xl border border-black/10 p-5 dark:border-white/15">
+          <h2 className="mb-1 font-medium">Narration voice</h2>
+          <p className="mb-3 text-sm opacity-60">
+            The voice that reads passages aloud. Remembered on this device.
+          </p>
+          <div className="flex flex-col gap-2">
+            {voices.map((v) => {
+              const defaultId = voices.find((x) => x.default)?.id ?? "";
+              const selected = (voicePref || defaultId) === v.id;
+              return (
+                <label
+                  key={v.id}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <input
+                    type="radio"
+                    name="narration-voice"
+                    checked={selected}
+                    onChange={() => {
+                      // Choosing the server default clears the preference,
+                      // so a future default change follows automatically.
+                      const pref = v.id === defaultId ? "" : v.id;
+                      setVoicePref(pref);
+                      setVoicePrefState(pref);
+                    }}
+                  />
+                  <span className="capitalize">{v.id}</span>
+                  <span className="opacity-60">— {v.description}</span>
+                  {v.default && <span className="text-xs opacity-50">(default)</span>}
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col items-start gap-3">
         <button

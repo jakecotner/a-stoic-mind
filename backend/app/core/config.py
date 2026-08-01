@@ -60,6 +60,13 @@ class Settings(BaseSettings):
 
     anthropic_model: str = "claude-opus-4-8"
 
+    # Passage narration (OpenAI speech API; Anthropic has no TTS). Leave the
+    # key unset to disable audio — the audio endpoints return 503 and the
+    # frontend's play buttons report narration as unavailable.
+    openai_api_key: str | None = None
+    tts_model: str = "gpt-4o-mini-tts"
+    tts_voice: str = "onyx"
+
     # Free-tier monthly metered LLM turns (see app/services/usage.py). "plus"
     # tier and
     # superusers are uncapped.

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.routes.admin import router as admin_router
+from app.routes.audio import router as audio_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.daily import router as daily_router
@@ -58,6 +59,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(audio_router)
 app.include_router(auth_router)
 app.include_router(daily_router)
 app.include_router(journal_router)

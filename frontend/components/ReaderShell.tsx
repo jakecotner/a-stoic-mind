@@ -15,7 +15,14 @@ import {
   MarginNotes,
   MarkReadButton,
 } from "@/components/Reader";
-import { fetchBreakdown, type Passage, type Work } from "@/lib/api";
+import { PlayButton } from "@/components/PlayButton";
+import {
+  breakdownAudioUrl,
+  fetchBreakdown,
+  passageAudioUrl,
+  type Passage,
+  type Work,
+} from "@/lib/api";
 
 type NavLink = { href: string; label: string } | null;
 
@@ -74,8 +81,14 @@ function BreakdownPanel({
       </div>
 
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide opacity-50">
+        <h3 className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide opacity-50">
           Breakdown
+          {state.kind === "done" && state.text && (
+            <PlayButton
+              src={breakdownAudioUrl(passage.id)}
+              title="Listen to the breakdown"
+            />
+          )}
         </h3>
         {state.kind === "loading" && (
           <p className="text-sm italic opacity-60">
@@ -186,8 +199,12 @@ export default function ReaderShell({
                     }
                   }}
                 >
-                  <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-50">
+                  <p className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-wide opacity-50">
                     {locator(p.reference)}
+                    <PlayButton
+                      src={passageAudioUrl(p.id)}
+                      title={`Listen to ${p.reference}`}
+                    />
                   </p>
                   <p className="whitespace-pre-line leading-relaxed">
                     {p.text}

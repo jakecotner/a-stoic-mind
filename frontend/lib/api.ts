@@ -273,6 +273,29 @@ export async function fetchPassage(passageId: string): Promise<Passage> {
   return resp.json();
 }
 
+// --- Narration (mirrors backend app/routes/audio.py — public). The audio
+// itself is fetched by an <audio> element, not this client; these build the
+// URLs (the PlayButton appends the device's voice preference).
+
+export type Voice = Schema<"VoiceOut">;
+
+export const passageAudioUrl = (passageId: string): string =>
+  `/api/passages/${passageId}/audio`;
+
+export const breakdownAudioUrl = (passageId: string): string =>
+  `/api/passages/${passageId}/breakdown/audio`;
+
+/** Never throws — the voice picker simply stays hidden if this fails. */
+export async function fetchVoices(): Promise<Voice[]> {
+  try {
+    const resp = await fetch("/api/tts/voices");
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
 // --- Journal (mirrors backend app/routes/journal.py — authed, private)
 
 export type JournalEntry = Schema<"JournalEntryOut">;

@@ -4,6 +4,69 @@
  */
 
 export interface paths {
+    "/api/tts/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Voices
+         * @description Narration voices a listener may pick from (the configured default
+         *     first, marked).
+         */
+        get: operations["list_voices_api_tts_voices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages/{passage_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Passage Audio
+         * @description Narration of one passage — synthesized on the first listen anywhere,
+         *     served from the cache after.
+         */
+        get: operations["passage_audio_api_passages__passage_id__audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages/{passage_id}/breakdown/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Breakdown Audio
+         * @description Narration of a passage's breakdown (English — the only language
+         *     breakdowns are written in today).
+         */
+        get: operations["breakdown_audio_api_passages__passage_id__breakdown_audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -1056,6 +1119,15 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VoiceOut */
+        VoiceOut: {
+            /** Id */
+            id: string;
+            /** Description */
+            description: string;
+            /** Default */
+            default: boolean;
+        };
         /**
          * WorkOut
          * @description One work in the library, aggregated from its passages.
@@ -1081,6 +1153,92 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_voices_api_tts_voices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceOut"][];
+                };
+            };
+        };
+    };
+    passage_audio_api_passages__passage_id__audio_get: {
+        parameters: {
+            query?: {
+                voice?: string;
+            };
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    breakdown_audio_api_passages__passage_id__breakdown_audio_get: {
+        parameters: {
+            query?: {
+                voice?: string;
+            };
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_cookie_login_api_auth_login_post: {
         parameters: {
             query?: never;

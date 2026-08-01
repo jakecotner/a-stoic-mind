@@ -7,7 +7,14 @@
 import { useEffect, useState } from "react";
 import BoldMarkdown from "@/components/BoldMarkdown";
 import JournalPad, { EntryCard } from "@/components/JournalPad";
-import { fetchDayDetail, type Daily, type DayDetail } from "@/lib/api";
+import { PlayButton } from "@/components/PlayButton";
+import {
+  breakdownAudioUrl,
+  fetchDayDetail,
+  passageAudioUrl,
+  type Daily,
+  type DayDetail,
+} from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 
 const navButtonCls =
@@ -39,19 +46,22 @@ function PassageArticle({
   reference,
   text,
   attribution,
+  audioSrc,
 }: {
   heading: string;
   reference: string;
   text: string;
   attribution: React.ReactNode;
+  audioSrc?: string;
 }) {
   return (
     <article>
       <p className="mb-1 text-sm font-medium uppercase tracking-wide opacity-60">
         {heading}
       </p>
-      <h1 className="mb-4 text-2xl font-semibold tracking-tight">
+      <h1 className="mb-4 flex items-center gap-2 text-2xl font-semibold tracking-tight">
         {reference}
+        {audioSrc && <PlayButton src={audioSrc} title={`Listen to ${reference}`} />}
       </h1>
       <blockquote className="whitespace-pre-line text-lg leading-relaxed">
         {text}
@@ -139,6 +149,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 heading="Today's passage"
                 reference={daily.passage.reference}
                 text={daily.passage.text}
+                audioSrc={passageAudioUrl(daily.passage.id)}
                 attribution={
                   <>
                     {daily.passage.author}, <em>{daily.passage.work}</em>{" "}
@@ -162,8 +173,14 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
 
           {!browsing && daily && (
             <section className="border-t border-black/10 pt-6 dark:border-white/15">
-              <h2 className="mb-3 text-sm font-medium uppercase tracking-wide opacity-60">
+              <h2 className="mb-3 flex items-center gap-1 text-sm font-medium uppercase tracking-wide opacity-60">
                 Reflection
+                {daily.breakdown && (
+                  <PlayButton
+                    src={breakdownAudioUrl(daily.passage.id)}
+                    title="Listen to the reflection"
+                  />
+                )}
               </h2>
               {daily.breakdown ? (
                 <BoldMarkdown text={daily.breakdown} />
@@ -182,6 +199,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 heading="That day's passage"
                 reference={pastPassage.reference}
                 text={pastPassage.text}
+                audioSrc={passageAudioUrl(pastPassage.id)}
                 attribution={
                   <>
                     {pastPassage.author}, <em>{pastPassage.work}</em> &middot;

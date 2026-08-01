@@ -16,10 +16,12 @@ diagram:
 
 ```mermaid
 erDiagram
-    conversations {
-        uuid id PK
-        uuid user_id FK "nullable"
-        string title "nullable"
+    breakdown_audio {
+        uuid passage_id PK,FK
+        string language PK,FK
+        string voice PK
+        string media_type
+        bytes data
         datetime created_at
     }
     daily_passages {
@@ -34,6 +36,8 @@ erDiagram
         uuid passage_id FK "nullable"
         date date
         text content
+        text reflection "nullable"
+        string reflection_model "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -48,13 +52,6 @@ erDiagram
         int cache_read_input_tokens
         datetime created_at
     }
-    messages {
-        uuid id PK
-        uuid conversation_id FK
-        string role
-        text content
-        datetime created_at
-    }
     notes {
         uuid id PK
         uuid user_id FK
@@ -63,6 +60,13 @@ erDiagram
         text content
         datetime created_at
         datetime updated_at
+    }
+    passage_audio {
+        uuid passage_id PK,FK
+        string voice PK
+        string media_type
+        bytes data
+        datetime created_at
     }
     passage_breakdowns {
         uuid passage_id PK,FK
@@ -113,14 +117,15 @@ erDiagram
         datetime plus_renews_at "nullable"
         bool plus_cancel_at_period_end
     }
-    users |o--o{ conversations : "user_id · SET NULL"
+    passage_breakdowns ||--o{ breakdown_audio : "passage_id · CASCADE"
+    passage_breakdowns ||--o{ breakdown_audio : "language · CASCADE"
     passages ||--o{ daily_passages : "passage_id · CASCADE"
     users ||--o{ journal_entries : "user_id · CASCADE"
     passages |o--o{ journal_entries : "passage_id · SET NULL"
     users |o--o{ llm_usage : "user_id · SET NULL"
-    conversations ||--o{ messages : "conversation_id · CASCADE"
     users ||--o{ notes : "user_id · CASCADE"
     passages |o--o{ notes : "passage_id · SET NULL"
+    passages ||--o{ passage_audio : "passage_id · CASCADE"
     passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
     users ||--o{ passage_reads : "user_id · CASCADE"
     passages ||--o{ passage_reads : "passage_id · CASCADE"
