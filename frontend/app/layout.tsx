@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Footer from "@/components/Footer";
-import Header from "@/components/Header";
+import Sidebar from "@/components/Sidebar";
 import VerifyBanner from "@/components/VerifyBanner";
 import { UserProvider } from "@/lib/useUser";
 import "./globals.css";
@@ -37,11 +37,14 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="min-h-full flex font-sans">
         <UserProvider>
-          <Header />
-          <VerifyBanner />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <Sidebar />
+          <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+            <VerifyBanner />
+            <main className="flex-1 flex flex-col">{children}</main>
+            <Footer />
+          </div>
         </UserProvider>
       </body>
     </html>
