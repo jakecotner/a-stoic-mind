@@ -6,7 +6,6 @@ from datetime import date, time
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.crud import daily as daily_crud
 from app.crud import journal as journal_crud
 from app.crud import practice as practice_crud
 from app.models import User
@@ -19,6 +18,7 @@ from app.schemas.practice import (
     NoteWithPassageOut,
     ReadWorkOut,
 )
+from app.services import daily as daily_service
 
 
 def get_intention(db: Session, user: User) -> IntentionOut | None:
@@ -60,14 +60,14 @@ def month_view(db: Session, user: User, year: int, month: int) -> list[CalendarD
 
 
 def day_detail(db: Session, user: User, on: date) -> DayDetailOut:
-    daily_row = daily_crud.get_by_date(db, on)
+    if not 2000 <= on.year <= 2100:
+        raise HTTPException(422, "Invalid date")
+    # Any date can be viewed; its passage is assigned on first request and
+    # permanent from then on, so future days show what the landing page will.
+    daily_row = daily_service.get_or_assign(db, on)
     return DayDetailOut(
         date=on,
-        daily=(
-            PassageOut.model_validate(daily_row.passage)
-            if daily_row is not None
-            else None
-        ),
+        daily=PassageOut.model_validate(daily_row.passage),
         journal=[
             JournalEntryOut.model_validate(e)
             for e in journal_crud.for_user_on(db, user.id, on)
