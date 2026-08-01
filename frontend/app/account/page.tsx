@@ -2,14 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  getPacePref,
-  getVoicePref,
-  PACE_MAX,
-  PACE_MIN,
-  setPacePref,
-  setVoicePref,
-} from "@/components/PlayButton";
+import { getVoicePref, setVoicePref } from "@/components/PlayButton";
 import {
   deleteAccount,
   fetchBillingSummary,
@@ -33,7 +26,6 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voicePref, setVoicePrefState] = useState("");
-  const [pace, setPaceState] = useState(1);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -45,7 +37,6 @@ export default function AccountPage() {
 
   useEffect(() => {
     setVoicePrefState(getVoicePref());
-    setPaceState(getPacePref());
     void fetchVoices().then(setVoices);
   }, []);
 
@@ -114,9 +105,10 @@ export default function AccountPage() {
 
       {voices.length > 0 && (
         <section className="rounded-xl border border-black/10 p-5 dark:border-white/15">
-          <h2 className="mb-1 font-medium">Narration</h2>
+          <h2 className="mb-1 font-medium">Narration voice</h2>
           <p className="mb-3 text-sm opacity-60">
-            How passages are read aloud. Remembered on this device.
+            The voice that reads passages aloud. Remembered on this device.
+            Reading pace is set beside the play button while listening.
           </p>
           <div className="flex flex-col gap-2">
             {voices.map((v) => {
@@ -145,37 +137,6 @@ export default function AccountPage() {
                 </label>
               );
             })}
-          </div>
-          <div className="mt-5 border-t border-black/10 pt-4 dark:border-white/15">
-            <label
-              htmlFor="narration-pace"
-              className="mb-1 block text-sm font-medium"
-            >
-              Reading pace —{" "}
-              {pace === 1 ? "normal" : `${pace.toFixed(2).replace(/0$/, "")}×`}
-            </label>
-            <p className="mb-3 text-sm opacity-60">
-              Slower or faster playback of the same recording. Changes apply
-              even mid-listen.
-            </p>
-            <div className="flex items-center gap-3 text-xs opacity-70">
-              <span>slower</span>
-              <input
-                id="narration-pace"
-                type="range"
-                className="flex-1 accent-current"
-                min={PACE_MIN}
-                max={PACE_MAX}
-                step={0.05}
-                value={pace}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setPacePref(v);
-                  setPaceState(v);
-                }}
-              />
-              <span>faster</span>
-            </div>
           </div>
         </section>
       )}

@@ -22,21 +22,22 @@ export const setVoicePref = (id: string): void => {
 
 // Reading pace, per device (1 = as recorded). A playback-rate setting, not a
 // re-synthesis: the same cached audio plays faster or slower, pitch
-// preserved by the browser.
+// preserved by the browser. Chosen at the point of listening — a pace chip
+// appears beside the button while narration is active — and the latest
+// choice persists for all future narrations.
 const PACE_KEY = "astoicmind:tts-pace";
-export const PACE_MIN = 0.7;
-export const PACE_MAX = 1.5;
+const PACES = [0.75, 1, 1.25, 1.5, 2];
 
-export const getPacePref = (): number => {
+const getPacePref = (): number => {
   if (typeof window === "undefined") return 1;
   const v = Number(localStorage.getItem(PACE_KEY));
-  return v >= PACE_MIN && v <= PACE_MAX ? v : 1;
+  return PACES.includes(v) ? v : 1;
 };
 
-export const setPacePref = (pace: number): void => {
+const setPacePref = (pace: number): void => {
   if (pace === 1) localStorage.removeItem(PACE_KEY);
   else localStorage.setItem(PACE_KEY, String(pace));
-  // Adjust any narration already playing, so the slider is audible live.
+  // Adjust any narration already playing, so the change is audible live.
   if (active) active.playbackRate = pace;
 };
 
@@ -103,6 +104,8 @@ export function PlayButton({
   title?: string;
 }) {
   const [state, setState] = useState<PlayState>("idle");
+  const [pace, setPace] = useState(1);
+  const [paceMenu, setPaceMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const halt = () => {
@@ -118,17 +121,35 @@ export function PlayButton({
   // New passage in the same slot: stop the old narration, reset the button.
   useEffect(() => {
     setState("idle");
+    setPaceMenu(false);
     return halt;
   }, [src]);
+
+  // The pace menu closes like any menu: click elsewhere or Escape.
+  useEffect(() => {
+    if (!paceMenu) return;
+    const dismiss = () => setPaceMenu(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    document.addEventListener("click", dismiss);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", dismiss);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [paceMenu]);
 
   function toggle() {
     if (state === "playing" || state === "loading") {
       halt();
       setState("idle");
+      setPaceMenu(false);
       return;
     }
     const a = new Audio(withVoice(src));
     a.playbackRate = getPacePref();
+    setPace(getPacePref());
     active?.pause();
     active = a;
     audioRef.current = a;
@@ -157,29 +178,70 @@ export function PlayButton({
       : state === "playing" || state === "loading"
         ? "Stop narration"
         : title;
+  const activeNow = state === "playing" || state === "loading";
+  // All spans, no divs: PlayButton lives inside <p>/<h1> heading rows, where
+  // only phrasing content is valid.
   return (
-    <button
-      type="button"
-      className={`rounded p-1 opacity-50 transition-opacity hover:opacity-100 disabled:opacity-30 ${
-        state === "loading" ? "animate-pulse opacity-100" : ""
-      }`}
-      onClick={(e) => {
-        // Passages are themselves click targets (they open the companion
-        // panel); a listen click shouldn't also toggle the panel.
-        e.stopPropagation();
-        toggle();
-      }}
-      disabled={state === "failed"}
-      title={label}
-      aria-label={label}
-    >
-      {state === "failed" ? (
-        <SpeakerIcon muted />
-      ) : state === "idle" ? (
-        <SpeakerIcon />
-      ) : (
-        <StopIcon />
+    <span className="relative inline-flex items-center">
+      <button
+        type="button"
+        className={`rounded p-1 opacity-50 transition-opacity hover:opacity-100 disabled:opacity-30 ${
+          state === "loading" ? "animate-pulse opacity-100" : ""
+        }`}
+        onClick={(e) => {
+          // Passages are themselves click targets (they open the companion
+          // panel); a listen click shouldn't also toggle the panel.
+          e.stopPropagation();
+          toggle();
+        }}
+        disabled={state === "failed"}
+        title={label}
+        aria-label={label}
+      >
+        {state === "failed" ? (
+          <SpeakerIcon muted />
+        ) : state === "idle" ? (
+          <SpeakerIcon />
+        ) : (
+          <StopIcon />
+        )}
+      </button>
+      {activeNow && (
+        <button
+          type="button"
+          className="rounded px-1 text-[11px] normal-case tabular-nums opacity-60 hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPaceMenu((open) => !open);
+          }}
+          title="Reading pace"
+          aria-label={`Reading pace, currently ${pace}x`}
+          aria-expanded={paceMenu}
+        >
+          {pace}x
+        </button>
       )}
-    </button>
+      {activeNow && paceMenu && (
+        <span className="absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-[11px] normal-case shadow-lg dark:border-white/15">
+          {PACES.map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={`px-3 py-1.5 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
+                v === pace ? "font-semibold" : "opacity-70"
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPacePref(v);
+                setPace(v);
+                setPaceMenu(false);
+              }}
+            >
+              {v}x
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
   );
 }
