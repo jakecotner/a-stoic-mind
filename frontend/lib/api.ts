@@ -106,7 +106,10 @@ export async function deleteAccount(): Promise<void> {
 
 export type AppMeta = Schema<"MetaOut">;
 
-const META_FALLBACK: AppMeta = { require_email_verification: false };
+const META_FALLBACK: AppMeta = {
+  require_email_verification: false,
+  google_sign_in: false,
+};
 
 /** Never throws — optional surfaces should stay hidden if this fails. */
 export async function fetchMeta(): Promise<AppMeta> {

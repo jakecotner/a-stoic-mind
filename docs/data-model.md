@@ -61,6 +61,16 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    oauth_accounts {
+        uuid id PK
+        uuid user_id FK
+        string oauth_name
+        string access_token
+        int expires_at "nullable"
+        string refresh_token "nullable"
+        string account_id
+        string account_email
+    }
     passage_audio {
         uuid passage_id PK,FK
         string voice PK
@@ -125,6 +135,7 @@ erDiagram
     users |o--o{ llm_usage : "user_id · SET NULL"
     users ||--o{ notes : "user_id · CASCADE"
     passages |o--o{ notes : "passage_id · SET NULL"
+    users ||--o{ oauth_accounts : "user_id · CASCADE"
     passages ||--o{ passage_audio : "passage_id · CASCADE"
     passages ||--o{ passage_breakdowns : "passage_id · CASCADE"
     users ||--o{ passage_reads : "user_id · CASCADE"

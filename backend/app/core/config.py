@@ -109,6 +109,15 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = False  # set True when serving over HTTPS
     auth_token_lifetime_seconds: int = 60 * 60 * 24 * 30  # 30 days
 
+    # "Continue with Google" (see app/services/oauth.py). Both unset = the
+    # feature is dark: /api/meta reports it off so the button never renders,
+    # and the endpoints 503. The redirect URI to register in the Google Cloud
+    # console is <PUBLIC_BASE_URL or http://localhost:3000>/api/auth/google/callback
+    # — the FRONTEND origin, since the browser reaches the API through the
+    # Next.js rewrite proxy.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+
     # The browser normally reaches this API through the Next.js rewrite proxy
     # (same origin, no CORS); this list only matters for direct cross-origin
     # calls, e.g. tools hitting the API straight from a browser.

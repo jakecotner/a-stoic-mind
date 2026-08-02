@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import GoogleSignIn from "@/components/GoogleSignIn";
 import { forgotPassword, login } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 
@@ -11,12 +12,26 @@ const inputCls =
 const buttonCls =
   "w-full rounded-lg bg-foreground py-2 font-medium text-background hover:opacity-85 disabled:opacity-50";
 
+/** The page shell. useSearchParams (read by SignInForm, for the ?error= a
+    failed Google sign-in redirects back with) opts its subtree out of
+    prerendering, so it needs a Suspense boundary. */
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
   const router = useRouter();
   const { refresh } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // A Google sign-in that didn't complete comes back as /login?error=…
+  const [error, setError] = useState<string | null>(
+    useSearchParams().get("error"),
+  );
   const [busy, setBusy] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -53,31 +68,36 @@ export default function LoginPage() {
           your inbox.
         </p>
       ) : (
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <input
-            className={inputCls}
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-          />
-          {!forgotMode && (
+        <>
+          {!forgotMode && <GoogleSignIn label="Continue with Google" />}
+          <form onSubmit={submit} className="flex flex-col gap-4">
             <input
               className={inputCls}
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
+              autoFocus
             />
-          )}
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          <button className={buttonCls} disabled={busy}>
-            {busy ? "…" : forgotMode ? "Send reset link" : "Sign in"}
-          </button>
-        </form>
+            {!forgotMode && (
+              <input
+                className={inputCls}
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            )}
+            {error && (
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
+            <button className={buttonCls} disabled={busy}>
+              {busy ? "…" : forgotMode ? "Send reset link" : "Sign in"}
+            </button>
+          </form>
+        </>
       )}
       <div className="flex flex-col gap-1 text-sm opacity-75">
         <button

@@ -120,6 +120,39 @@ Files (frontend): the billing section of `lib/api.ts` and the upgrade
 surface in `app/account/page.tsx`.
 Tables: none of its own (fields on `users`).
 
+## sign in with Google (flavor — not a module)
+
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `backend/.env` (setup steps
+in `backend/.env.example`). Unset: the sign-in and sign-up pages show only
+the email/password form and `/api/auth/google/*` returns 503 — nothing to
+delete. Set: "Continue with Google" appears, and the callback issues the
+same session cookie a password sign-in does, so every other route is
+unaffected.
+
+Product decisions baked in (change knowingly, in `app/services/oauth.py`):
+- **One person, one account**: a Google address that matches an existing
+  account signs into THAT account rather than creating a second one
+  (`LINK_BY_EMAIL`). Only addresses Google reports as verified are accepted,
+  which is what makes that safe.
+- Accounts created this way start `is_verified=True` — they never need the
+  confirm-your-email round trip even with the verification flavor on.
+- A Google-created account has an unusable random password; "Forgot your
+  password?" is the escape hatch if someone later wants to sign in without
+  Google.
+
+Files (backend): `app/models/oauth.py` (+ imports in `models/__init__.py`),
+`app/services/oauth.py`, the Google routes in `app/routes/auth.py`, the
+OAuth methods + `attach_session_cookie` in `app/core/auth.py`,
+`oauth_accounts` on `app/models/user.py`, the Google settings in
+`core/config.py`, `google_sign_in` in `schemas/meta.py` + `app/main.py`.
+Files (frontend): `components/GoogleSignIn.tsx` and its use in
+`app/login/page.tsx` + `app/register/page.tsx`.
+Tables: `oauth_accounts`.
+
+Adding Microsoft or Apple later: the table already carries `oauth_name`, so
+it's a second httpx-oauth client, a second settings pair, a second pair of
+routes, and a second button — no schema change.
+
 ## email verification (flavor — not a module)
 
 `REQUIRE_EMAIL_VERIFICATION` in `backend/.env`. Off: registration is

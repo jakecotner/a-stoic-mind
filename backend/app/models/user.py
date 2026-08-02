@@ -3,9 +3,10 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.oauth import OAuthAccount
 
 
 class User(Base):
@@ -34,4 +35,10 @@ class User(Base):
     )
     plus_cancel_at_period_end: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
+    )
+    # External sign-in links ("Continue with Google"). fastapi-users reads
+    # this attribute by name when a returning OAuth user signs in, so it is
+    # eager-loaded — the session is closed by the time a route sees the user.
+    oauth_accounts: Mapped[list[OAuthAccount]] = relationship(
+        lazy="selectin", cascade="all, delete-orphan"
     )
