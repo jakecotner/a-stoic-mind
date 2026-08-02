@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import GoogleSignIn from "@/components/GoogleSignIn";
 import { login, register } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 
@@ -39,6 +40,7 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-4 py-16">
       <h1 className="text-2xl font-semibold">Create your account</h1>
+      <GoogleSignIn label="Sign up with Google" />
       <form onSubmit={submit} className="flex flex-col gap-4">
         <input
           className={inputCls}

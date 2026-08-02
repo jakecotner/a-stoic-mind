@@ -917,6 +917,8 @@ export interface components {
         MetaOut: {
             /** Require Email Verification */
             require_email_verification: boolean;
+            /** Google Sign In */
+            google_sign_in: boolean;
         };
         /** NoteCreate */
         NoteCreate: {

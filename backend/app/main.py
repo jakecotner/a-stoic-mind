@@ -79,6 +79,8 @@ def health() -> dict:
 def meta() -> MetaOut:
     """Public feature flags the frontend reads at load (e.g. whether to show
     the verify-your-email surface). Extend as new flavors appear."""
+    settings = get_settings()
     return MetaOut(
-        require_email_verification=get_settings().require_email_verification
+        require_email_verification=settings.require_email_verification,
+        google_sign_in=bool(settings.google_client_id and settings.google_client_secret),
     )

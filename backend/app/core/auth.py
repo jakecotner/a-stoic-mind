@@ -18,7 +18,7 @@ from collections.abc import Generator
 from typing import Any, Optional
 
 import anyio
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi_users import BaseUserManager, FastAPIUsers, InvalidPasswordException, UUIDIDMixin
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.models import User
+from app.models import OAuthAccount, User
 from app.services.email import send_email
 
 logger = logging.getLogger("astoicmind")
@@ -76,6 +76,37 @@ class SyncSQLAlchemyUserDatabase(BaseUserDatabase[User, uuid.UUID]):
     async def delete(self, user: User) -> None:
         self.session.delete(user)
         self.session.commit()
+
+    # --- OAuth ("Continue with Google", see app/services/oauth.py). These
+    # three are what fastapi-users' UserManager.oauth_callback needs from the
+    # database; the dicts it passes match OAuthAccount's columns exactly.
+
+    async def get_by_oauth_account(self, oauth: str, account_id: str) -> Optional[User]:
+        return self.session.scalar(
+            select(User)
+            .join(OAuthAccount, OAuthAccount.user_id == User.id)
+            .where(
+                OAuthAccount.oauth_name == oauth,
+                OAuthAccount.account_id == account_id,
+            )
+        )
+
+    async def add_oauth_account(self, user: User, create_dict: dict[str, Any]) -> User:
+        user.oauth_accounts.append(OAuthAccount(**create_dict))
+        self.session.add(user)
+        self.session.commit()
+        self.session.refresh(user)
+        return user
+
+    async def update_oauth_account(
+        self, user: User, oauth_account: OAuthAccount, update_dict: dict[str, Any]
+    ) -> User:
+        for field, value in update_dict.items():
+            setattr(oauth_account, field, value)
+        self.session.add(oauth_account)
+        self.session.commit()
+        self.session.refresh(user)
+        return user
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
@@ -203,6 +234,21 @@ current_superuser = fastapi_users.current_user(active=True, superuser=True)
 current_verified_user = fastapi_users.current_user(
     active=True, verified=get_settings().require_email_verification
 )
+
+
+async def attach_session_cookie(user: User, response: Response) -> Response:
+    """Sign `user` in on an arbitrary response.
+
+    /api/auth/login answers 204 with the cookie attached, which the fastapi-users
+    backend builds for us. The Google callback has to REDIRECT the browser back
+    into the app instead, so it borrows the same backend's Set-Cookie header
+    rather than re-declaring the cookie's name/lifetime/flags a second time.
+    """
+    login_response = await auth_backend.login(get_jwt_strategy(), user)
+    for name, value in login_response.raw_headers:
+        if name.lower() == b"set-cookie":
+            response.raw_headers.append((name, value))
+    return response
 
 
 def require_plus(user: User, message: str) -> None:

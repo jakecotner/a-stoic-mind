@@ -44,6 +44,13 @@ it uses.
   cookie, plus a bearer-token variant for a future mobile app. Frontend pages
   for register, login, forgot/reset password, and account deletion, all
   wired.
+- **Sign in with Google** (flavor, dark until configured) — set
+  `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and the sign-in and sign-up
+  pages grow a "Continue with Google" button
+  (`app/services/oauth.py`, `components/GoogleSignIn.tsx`). Signing in with
+  a Google address that already has a password account joins that same
+  account. Unset: the button never renders and email + password is the only
+  way in. Setup steps in `backend/.env.example`.
 - **Email verification** (flavor, off by default) — set
   `REQUIRE_EMAIL_VERIFICATION=true` and new accounts get a verification
   email; unverified users can sign in but chat turns and checkout are

@@ -9,6 +9,7 @@ from app.models.audio import BreakdownAudio, PassageAudio
 from app.models.base import Base
 from app.models.daily import DailyPassage
 from app.models.journal import JournalEntry
+from app.models.oauth import OAuthAccount
 from app.models.passage import Passage, PassageBreakdown
 from app.models.practice import PracticeIntention
 from app.models.reading import Note, PassageRead
@@ -22,6 +23,7 @@ __all__ = [
     "JournalEntry",
     "LlmUsage",
     "Note",
+    "OAuthAccount",
     "Passage",
     "PassageAudio",
     "PassageBreakdown",
