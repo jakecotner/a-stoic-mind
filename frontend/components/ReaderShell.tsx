@@ -20,15 +20,18 @@ import {
   AnnotationsProvider,
   MarginNotes,
   MarkReadButton,
+  useAnnotations,
 } from "@/components/Reader";
 import { PlayButton } from "@/components/PlayButton";
 import {
   breakdownAudioUrl,
+  createNote,
   fetchBreakdown,
   passageAudioUrl,
   type Passage,
   type Work,
 } from "@/lib/api";
+import { configureDictation } from "@/lib/dictation";
 import {
   type ContinueMode,
   type QueueItem,
@@ -145,6 +148,23 @@ function BreakdownPanel({
   );
 }
 
+/** Files a spoken note as a margin note on the passage being narrated,
+    updating the margin live. Renders nothing; signed out, does nothing. */
+function VoiceNotesSink() {
+  const ann = useAnnotations();
+  const annRef = useRef(ann);
+  annRef.current = ann;
+  const signedIn = !!ann?.signedIn;
+  useEffect(() => {
+    if (!signedIn) return;
+    return configureDictation(async (passageId, text) => {
+      const note = await createNote(passageId, text);
+      annRef.current?.addLocal(note);
+    });
+  }, [signedIn]);
+  return null;
+}
+
 export default function ReaderShell({
   work,
   label,
@@ -244,7 +264,9 @@ export default function ReaderShell({
     getServerNarrationSnapshot
   );
   const narrating =
-    (snap.state === "playing" || snap.state === "loading") &&
+    (snap.state === "playing" ||
+      snap.state === "loading" ||
+      snap.state === "paused") &&
     snap.item &&
     passages.some((p) => p.id === snap.item!.passageId)
       ? snap.item
@@ -286,6 +308,7 @@ export default function ReaderShell({
 
   return (
     <AnnotationsProvider work={work.work}>
+      <VoiceNotesSink />
       <div
         className={
           selected

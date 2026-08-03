@@ -114,6 +114,36 @@ def synthesize(text: str, voice: str) -> tuple[bytes, str]:
     return b"".join(parts), "audio/mpeg"
 
 
+# OpenAI's transcription endpoint caps uploads at 25 MB — reject earlier
+# with a clearer message (25 MB of m4a is well over an hour of dictation).
+MAX_DICTATION_BYTES = 25 * 1024 * 1024
+
+
+def transcribe(data: bytes, filename: str, content_type: str) -> str:
+    """Speech-to-text for journal dictation. Returns the recognized text;
+    raises HTTPException when unconfigured or the provider fails."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(503, "Dictation is not configured")
+    if not data:
+        raise HTTPException(422, "Empty recording")
+    if len(data) > MAX_DICTATION_BYTES:
+        raise HTTPException(413, "Recording too long — try shorter takes")
+    resp = httpx.post(
+        "https://api.openai.com/v1/audio/transcriptions",
+        headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+        data={"model": settings.stt_model},
+        files={"file": (filename or "dictation.m4a", data, content_type or "audio/m4a")},
+        timeout=120.0,
+    )
+    if resp.status_code != 200:
+        logger.error(
+            "STT request failed: %s %s", resp.status_code, resp.text[:500]
+        )
+        raise HTTPException(502, "Transcription failed")
+    return str(resp.json().get("text", "")).strip()
+
+
 def narrate_passage(
     db: Session, passage_id: uuid.UUID, voice: str
 ) -> PassageAudio:

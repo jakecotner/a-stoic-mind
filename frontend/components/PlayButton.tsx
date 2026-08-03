@@ -20,6 +20,13 @@ import {
   stopNarration,
   subscribeNarration,
 } from "@/lib/narration";
+import {
+  type DictationSnapshot,
+  getDictationSnapshot,
+  getServerDictationSnapshot,
+  setVoiceNotesArmed,
+  subscribeDictation,
+} from "@/lib/dictation";
 
 const CONTINUE_CHIP: Record<ContinueMode, string> = {
   off: "auto: off",
@@ -32,6 +39,33 @@ const CONTINUE_LABELS: Record<ContinueMode, string> = {
   passages: "Continue to the next passage",
   reflections: "Continue, reading reflections too",
 };
+
+/** Mic-chip face for each dictation state. */
+function micChip(d: DictationSnapshot): { text: string; label: string } {
+  if (!d.armed)
+    return {
+      text: "mic off",
+      label:
+        d.status === "denied"
+          ? "Microphone blocked — allow it in the browser, then click again"
+          : "Voice notes: off — arm the mic, then just talk to leave a note",
+    };
+  switch (d.status) {
+    case "recording":
+      return { text: "● rec", label: "Recording your note — pause to finish" };
+    case "transcribing":
+      return { text: "mic …", label: "Transcribing your note…" };
+    case "saved":
+      return { text: "✓ noted", label: "Note saved to the passage" };
+    case "error":
+      return { text: "mic ✕", label: "Couldn't save that note — try again" };
+    default:
+      return {
+        text: "mic on",
+        label: "Voice notes: on — just start talking; click to turn off",
+      };
+  }
+}
 
 function SpeakerIcon({ muted }: { muted?: boolean }) {
   return (
@@ -111,7 +145,13 @@ export function PlayButton({
   // the new one lights up, whichever button started the run.
   const mine = snap.item?.src === src;
   const state = mine ? snap.state : "idle";
-  const activeNow = state === "playing" || state === "loading";
+  const activeNow =
+    state === "playing" || state === "loading" || state === "paused";
+  const dictation = useSyncExternalStore(
+    subscribeDictation,
+    getDictationSnapshot,
+    getServerDictationSnapshot
+  );
 
   const [pace, setPace] = useState(1);
   const [mode, setMode] = useState<ContinueMode>("off");
@@ -226,6 +266,25 @@ export function PlayButton({
           aria-expanded={menu === "continue"}
         >
           {CONTINUE_CHIP[mode]}
+        </button>
+      )}
+      {activeNow && dictation.available && (
+        <button
+          type="button"
+          className={`${chipCls} ${
+            dictation.status === "recording"
+              ? "animate-pulse text-red-600 opacity-100 dark:text-red-400"
+              : ""
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setVoiceNotesArmed(!dictation.armed);
+          }}
+          title={micChip(dictation).label}
+          aria-label={micChip(dictation).label}
+          aria-pressed={dictation.armed}
+        >
+          {micChip(dictation).text}
         </button>
       )}
       {activeNow && menu === "pace" && (

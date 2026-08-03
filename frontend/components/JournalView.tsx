@@ -10,12 +10,14 @@ import JournalPad, { EntryCard } from "@/components/JournalPad";
 import { PlayButton } from "@/components/PlayButton";
 import {
   breakdownAudioUrl,
+  createNote,
   fetchBreakdown,
   fetchDayDetail,
   passageAudioUrl,
   type Daily,
   type DayDetail,
 } from "@/lib/api";
+import { configureDictation } from "@/lib/dictation";
 import { type ContinueMode, type QueueItem } from "@/lib/narration";
 import { useUser } from "@/lib/useUser";
 
@@ -111,6 +113,15 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
   const [detailError, setDetailError] = useState(false);
 
   const today = toIso(new Date());
+
+  // Spoken notes during narration land as margin notes on the passage
+  // being read (they show under it in the library reader).
+  useEffect(() => {
+    if (!user) return;
+    return configureDictation(async (passageId, text) => {
+      await createNote(passageId, text);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (on === null) {

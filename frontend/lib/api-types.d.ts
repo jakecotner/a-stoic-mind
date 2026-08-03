@@ -273,6 +273,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/journal/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transcribe Dictation
+         * @description Speech-to-text for a dictated entry (the mobile app records, we
+         *     transcribe). Returns text only — saving stays an explicit user action.
+         */
+        post: operations["transcribe_dictation_api_journal_transcribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/journal/stats": {
         parameters: {
             query?: never;
@@ -746,6 +767,11 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** Body_transcribe_dictation_api_journal_transcribe_post */
+        Body_transcribe_dictation_api_journal_transcribe_post: {
+            /** File */
+            file: string;
+        };
         /** Body_verify_request_token_api_auth_request_verify_token_post */
         Body_verify_request_token_api_auth_request_verify_token_post: {
             /**
@@ -1023,6 +1049,11 @@ export interface components {
             label: string;
             /** Passage Count */
             passage_count: number;
+        };
+        /** TranscriptOut */
+        TranscriptOut: {
+            /** Text */
+            text: string;
         };
         /** Turns */
         Turns: {
@@ -1700,6 +1731,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transcribe_dictation_api_journal_transcribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_transcribe_dictation_api_journal_transcribe_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptOut"];
                 };
             };
             /** @description Validation Error */

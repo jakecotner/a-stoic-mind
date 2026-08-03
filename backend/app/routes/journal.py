@@ -2,7 +2,7 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.auth import current_active_user
@@ -14,7 +14,9 @@ from app.schemas.journal import (
     JournalEntryOut,
     JournalEntryUpdate,
     JournalStatsOut,
+    TranscriptOut,
 )
+from app.services import audio as audio_service
 from app.services import journal as journal_service
 
 router = APIRouter(prefix="/api/journal", tags=["journal"])
@@ -27,6 +29,20 @@ def create_entry(
     db: Session = Depends(get_db),
 ):
     return journal_service.create_entry(db, user, req.content, req.passage_id)
+
+
+@router.post("/transcribe", response_model=TranscriptOut)
+def transcribe_dictation(
+    file: UploadFile,
+    user: User = Depends(current_active_user),
+):
+    """Speech-to-text for a dictated entry (the mobile app records, we
+    transcribe). Returns text only — saving stays an explicit user action."""
+    data = file.file.read()
+    text = audio_service.transcribe(
+        data, file.filename or "", file.content_type or ""
+    )
+    return TranscriptOut(text=text)
 
 
 @router.get("/stats", response_model=JournalStatsOut)

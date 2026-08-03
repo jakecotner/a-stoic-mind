@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "onyx"
+    # Journal dictation (speech-to-text, same OpenAI key as narration).
+    stt_model: str = "gpt-4o-mini-transcribe"
 
     # Free-tier monthly metered LLM turns (see app/services/usage.py). "plus"
     # tier and

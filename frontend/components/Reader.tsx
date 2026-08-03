@@ -38,6 +38,12 @@ type AnnotationsCtx = {
 
 const Ctx = createContext<AnnotationsCtx | null>(null);
 
+/** The work's annotations context (null outside a provider) — lets
+    siblings of MarginNotes, like the voice-note sink, add notes live. */
+export function useAnnotations(): AnnotationsCtx | null {
+  return useContext(Ctx);
+}
+
 export function AnnotationsProvider({
   work,
   children,

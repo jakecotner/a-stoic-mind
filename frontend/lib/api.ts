@@ -288,6 +288,24 @@ export const passageAudioUrl = (passageId: string): string =>
 export const breakdownAudioUrl = (passageId: string): string =>
   `/api/passages/${passageId}/breakdown/audio`;
 
+/** Speech-to-text for a dictated voice note (authed; shares the journal
+    dictation endpoint). Returns the recognized text — saving is separate. */
+export async function transcribeDictation(
+  blob: Blob,
+  mime: string,
+): Promise<string> {
+  const ext = mime.includes("wav") ? "wav" : mime.includes("mp4") ? "m4a" : "webm";
+  const form = new FormData();
+  form.append("file", blob, `note.${ext}`);
+  const resp = await fetch("/api/journal/transcribe", {
+    method: "POST",
+    body: form,
+  });
+  if (!resp.ok) throw new Error(`Could not transcribe the note (${resp.status})`);
+  const out: Schema<"TranscriptOut"> = await resp.json();
+  return out.text;
+}
+
 /** Never throws — the voice picker simply stays hidden if this fails. */
 export async function fetchVoices(): Promise<Voice[]> {
   try {

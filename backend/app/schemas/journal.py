@@ -30,6 +30,12 @@ class JournalEntryOut(BaseModel):
     updated_at: datetime
 
 
+class TranscriptOut(BaseModel):
+    # The recognized text of a dictated entry — the client appends it to the
+    # draft; nothing is saved until the user saves the entry itself.
+    text: str
+
+
 class JournalStatsOut(BaseModel):
     total_entries: int
     # Consecutive days with at least one entry, ending today (or yesterday

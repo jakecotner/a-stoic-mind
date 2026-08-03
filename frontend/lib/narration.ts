@@ -23,7 +23,12 @@ export type QueueItem = {
   prepare?: () => Promise<boolean>;
 };
 
-export type NarrationState = "idle" | "loading" | "playing" | "failed";
+export type NarrationState =
+  | "idle"
+  | "loading"
+  | "playing"
+  | "paused" // suspended by the app (e.g. while a voice note records)
+  | "failed";
 
 export type NarrationSnapshot = {
   state: NarrationState;
@@ -112,6 +117,9 @@ let builder: ((mode: ContinueMode) => QueueItem[]) | null = null;
 // The value at start doubles as the run's owner token.
 let run = 0;
 let prefetched: string | null = null;
+// True while WE paused the element (a dictation interlude) — tells the
+// pause handler apart from a hardware/OS pause, which means "stop".
+let suspended = false;
 
 const listeners = new Set<() => void>();
 const IDLE: NarrationSnapshot = { state: "idle", item: null };
@@ -145,6 +153,7 @@ function ensureAudio(): HTMLAudioElement {
   // stop, matching the old one-button behavior. Our own stop() clears the
   // src first, so `a.currentSrc` distinguishes the two.
   a.onpause = () => {
+    if (suspended) return;
     if (!a.ended && a.currentSrc && snapshot.state === "playing") stop();
   };
   a.onerror = () => {
@@ -177,6 +186,30 @@ export function stopNarration(): void {
   stop();
 }
 
+/** Suspend playback without losing the queue — the dictation interlude.
+    A no-op unless something is actually playing. */
+export function pauseNarration(): void {
+  if (snapshot.state !== "playing" || !audio) return;
+  suspended = true;
+  audio.pause();
+  emit("paused");
+}
+
+/** Resume after pauseNarration. */
+export function resumeNarration(): void {
+  if (!suspended || !audio) return;
+  suspended = false;
+  const token = run;
+  emit("loading");
+  audio.play().catch(() => {
+    if (token === run) {
+      run++;
+      builder = null;
+      emit("failed");
+    }
+  });
+}
+
 /** Stop only if `token`'s run is still the one playing — a button
     unmounting shouldn't silence a run it didn't start. */
 export function stopIfOwner(token: number): void {
@@ -189,6 +222,7 @@ function stop() {
   queue = [];
   index = -1;
   prefetched = null;
+  suspended = false;
   if (audio) {
     audio.pause();
     audio.removeAttribute("src"); // abort any in-flight fetch
