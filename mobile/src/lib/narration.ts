@@ -72,15 +72,29 @@ type PlaybackStatus = {
   error?: string | null;
 };
 
+// While a practice session runs, the user's own music (Spotify, anything)
+// stays alive and ducks under narration instead of being silenced. Off by
+// default: doNotMix is what keeps the lock-screen controls.
+let sessionMixing = false;
+
+function applyAudioMode() {
+  setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: true,
+    interruptionMode: sessionMixing ? 'duckOthers' : 'doNotMix',
+  }).catch(() => {});
+}
+
+export function setSessionMixing(active: boolean) {
+  sessionMixing = active;
+  applyAudioMode();
+}
+
 function ensurePlayer(): AudioPlayer {
   if (player) return player;
   // doNotMix is required for the lock-screen controls; background playback
   // keeps a walk narrated with the screen off.
-  setAudioModeAsync({
-    playsInSilentMode: true,
-    shouldPlayInBackground: true,
-    interruptionMode: 'doNotMix',
-  }).catch(() => {});
+  applyAudioMode();
   const p = createAudioPlayer();
   p.addListener('playbackStatusUpdate', (status: PlaybackStatus) => {
     if (status.error && snapshot.state !== 'idle' && snapshot.state !== 'failed') {

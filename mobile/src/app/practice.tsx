@@ -4,16 +4,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { PracticeSessionView } from '@/components/practice-session';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, InlineAction, Screen, SectionTitle, Stepper } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import {
   fetchCalendar,
   fetchDayDetail,
+  fetchGuides,
   fetchIntention,
   saveIntention,
   type CalendarDay,
   type DayDetail,
+  type Guide,
   type Intention,
 } from '@/lib/api';
 import { useTheme } from '@/hooks/use-theme';
@@ -138,9 +141,18 @@ function IntentionBar() {
   );
 }
 
+function guideLabel(guide: string | null): string {
+  if (guide === 'morning') return 'Morning preparation';
+  if (guide === 'evening') return 'Evening review';
+  return 'Freeform practice';
+}
+
 function DayPanel({ detail }: { detail: DayDetail }) {
   const empty =
-    detail.journal.length === 0 && detail.notes.length === 0 && detail.reads.length === 0;
+    detail.journal.length === 0 &&
+    detail.notes.length === 0 &&
+    detail.reads.length === 0 &&
+    detail.sessions.length === 0;
 
   return (
     <View style={styles.dayPanel}>
@@ -151,6 +163,20 @@ function DayPanel({ detail }: { detail: DayDetail }) {
           <ThemedText type="small" style={styles.dim}>
             {detail.daily.text}
           </ThemedText>
+        </View>
+      )}
+
+      {detail.sessions.length > 0 && (
+        <View style={styles.daySection}>
+          <SectionTitle>Sessions</SectionTitle>
+          {detail.sessions.map((s) => (
+            <ThemedText type="small" key={s.id}>
+              {guideLabel(s.guide)}{' '}
+              <ThemedText type="small" themeColor="textSecondary">
+                — {Math.max(1, Math.round((s.duration_seconds ?? 0) / 60))} min
+              </ThemedText>
+            </ThemedText>
+          ))}
         </View>
       )}
 
@@ -213,15 +239,23 @@ export default function PracticeScreen() {
   const [days, setDays] = useState<CalendarDay[]>([]);
   const [selected, setSelected] = useState<string>(todayStr);
   const [detail, setDetail] = useState<DayDetail | null>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
+  // null = no session running; { guide: null } = a freeform session.
+  const [session, setSession] = useState<{ guide: Guide | null } | null>(null);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    fetchGuides().then(setGuides);
+  }, []);
 
   useEffect(() => {
     fetchCalendar(view.year, view.month).then(setDays);
-  }, [view]);
+  }, [view, refresh]);
 
   useEffect(() => {
     setDetail(null);
     fetchDayDetail(selected).then(setDetail);
-  }, [selected]);
+  }, [selected, refresh]);
 
   const shift = useCallback((delta: number) => {
     setView((v) => {
@@ -232,9 +266,38 @@ export default function PracticeScreen() {
 
   const firstWeekday = new Date(view.year, view.month - 1, 1).getDay();
 
+  // A running session takes over the tab — one thing at a time.
+  if (session) {
+    return (
+      <PracticeSessionView
+        guide={session.guide}
+        onDone={() => {
+          setSession(null);
+          setRefresh((n) => n + 1);
+        }}
+      />
+    );
+  }
+
   return (
     <Screen title="Practice">
       <IntentionBar />
+
+      <Card style={styles.launcherCard}>
+        <ThemedText type="smallBold">Begin a session</ThemedText>
+        <View style={styles.launcherRow}>
+          {guides.map((g) => (
+            <View key={g.key} style={styles.flexOne}>
+              <Button label={g.title} onPress={() => setSession({ guide: g })} />
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Just practice"
+          kind="secondary"
+          onPress={() => setSession({ guide: null })}
+        />
+      </Card>
 
       <View style={styles.monthHeader}>
         <InlineAction label="← previous" onPress={() => shift(-1)} />
@@ -271,6 +334,7 @@ export default function PracticeScreen() {
                   {n}
                 </ThemedText>
                 <View style={styles.badges}>
+                  {day.session_count > 0 && <Dot label="S" />}
                   {day.read_count > 0 && <Dot label="R" />}
                   {day.journal_count > 0 && <Dot label="J" />}
                   {day.note_count > 0 && <Dot label="N" />}
@@ -281,7 +345,7 @@ export default function PracticeScreen() {
         })}
       </View>
       <ThemedText type="small" themeColor="textSecondary">
-        R read · J journaled · N margin notes
+        S session · R read · J journaled · N margin notes
       </ThemedText>
 
       {detail && <DayPanel detail={detail} />}
@@ -314,6 +378,14 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   intentionActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  launcherCard: {
+    paddingVertical: Spacing.three,
+    gap: Spacing.two,
+  },
+  launcherRow: {
     flexDirection: 'row',
     gap: Spacing.two,
   },

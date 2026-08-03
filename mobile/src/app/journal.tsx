@@ -3,16 +3,11 @@
 // morning passage); the recording is transcribed server-side and lands in
 // the draft, and nothing is saved until the user saves the entry itself.
 // The arrows step back through previous days' entries.
-import {
-  AudioModule,
-  RecordingPresets,
-  setAudioModeAsync,
-  useAudioRecorder,
-} from 'expo-audio';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import { BoldMarkdown } from '@/components/bold-markdown';
+import { DictationButton } from '@/components/dictation-button';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, EmptyState, InlineAction, Screen, SectionTitle } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -24,12 +19,10 @@ import {
   fetchJournalStats,
   reflectOnEntry,
   ReflectionCapError,
-  transcribeDictation,
   updateJournalEntry,
   type JournalEntry,
   type JournalStats,
 } from '@/lib/api';
-import { stopNarration } from '@/lib/narration';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Local-date ISO (YYYY-MM-DD) — not toISOString(), which shifts to UTC. */
@@ -158,66 +151,6 @@ function EntryCard({
         </ThemedText>
       ) : null}
     </Card>
-  );
-}
-
-/** Record → transcribe → hand the text to the pad. */
-function DictationButton({
-  onText,
-  onError,
-}: {
-  onText: (text: string) => void;
-  onError: (message: string) => void;
-}) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const [phase, setPhase] = useState<'idle' | 'recording' | 'transcribing'>('idle');
-
-  async function start() {
-    onError('');
-    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-    if (!granted) {
-      onError('Microphone access is needed to dictate — enable it in Settings.');
-      return;
-    }
-    // Recording and narration can't share the session.
-    stopNarration();
-    try {
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setPhase('recording');
-    } catch {
-      onError('Could not start recording.');
-      setPhase('idle');
-    }
-  }
-
-  async function finish() {
-    setPhase('transcribing');
-    try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      const uri = recorder.uri;
-      if (!uri) throw new Error('The recording could not be read.');
-      const text = await transcribeDictation(uri);
-      if (text) onText(text);
-      else onError('Nothing was recognized — try speaking a little longer.');
-    } catch (e) {
-      onError(e instanceof Error ? e.message : 'Could not transcribe the recording.');
-    } finally {
-      setPhase('idle');
-    }
-  }
-
-  if (phase === 'recording')
-    return <Button label="■ Stop dictating" kind="danger" onPress={finish} />;
-  return (
-    <Button
-      label={phase === 'transcribing' ? 'Transcribing…' : '🎙 Dictate'}
-      kind="secondary"
-      busy={phase === 'transcribing'}
-      onPress={start}
-    />
   );
 }
 

@@ -392,6 +392,35 @@ export async function saveIntention(
   );
 }
 
+// --- Practice sessions: one sitting, optionally structured by a guide.
+
+export type Guide = Schema<'GuideOut'>;
+export type GuideStep = Schema<'GuideStepOut'>;
+export type PracticeSession = Schema<'SessionOut'>;
+
+/** The guides are static content; an empty list just hides the launcher. */
+export async function fetchGuides(): Promise<Guide[]> {
+  return getOr<Guide[]>('/api/practice/guides', []);
+}
+
+export async function startPracticeSession(
+  guide: Guide['key'] | null
+): Promise<PracticeSession> {
+  return send('POST', '/api/practice/sessions', { guide }, 'Could not start the session');
+}
+
+export async function endPracticeSession(
+  sessionId: string,
+  stepsCompleted: string[]
+): Promise<PracticeSession> {
+  return send(
+    'POST',
+    `/api/practice/sessions/${sessionId}/end`,
+    { steps_completed: stepsCompleted },
+    'Could not end the session'
+  );
+}
+
 // --- Billing (read-only here — checkout and management happen on the
 // website; the phone only shows the current plan)
 

@@ -13,6 +13,7 @@ from app.models import (
     Passage,
     PassageRead,
     PracticeIntention,
+    PracticeSession,
 )
 
 
@@ -34,6 +35,62 @@ def upsert_intention(
     db.commit()
     db.refresh(row)
     return row
+
+
+def create_session(
+    db: Session, user_id: uuid.UUID, on: date, guide: str | None
+) -> PracticeSession:
+    row = PracticeSession(user_id=user_id, date=on, guide=guide)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_session(
+    db: Session, user_id: uuid.UUID, session_id: uuid.UUID
+) -> PracticeSession | None:
+    return db.scalar(
+        select(PracticeSession).where(
+            PracticeSession.id == session_id, PracticeSession.user_id == user_id
+        )
+    )
+
+
+def session_aggregates(
+    db: Session, user_id: uuid.UUID, start: date, end: date
+) -> dict[date, tuple[int, int]]:
+    """date -> (ended session count, total practice seconds), for [start, end)."""
+    rows = db.execute(
+        select(
+            PracticeSession.date,
+            func.count(),
+            func.coalesce(func.sum(PracticeSession.duration_seconds), 0),
+        )
+        .where(
+            PracticeSession.user_id == user_id,
+            PracticeSession.date >= start,
+            PracticeSession.date < end,
+            PracticeSession.ended_at.is_not(None),
+        )
+        .group_by(PracticeSession.date)
+    )
+    return {d: (n, secs) for d, n, secs in rows}
+
+
+def sessions_on(db: Session, user_id: uuid.UUID, on: date) -> list[PracticeSession]:
+    """The day's ended sessions, in the order they were sat."""
+    return list(
+        db.scalars(
+            select(PracticeSession)
+            .where(
+                PracticeSession.user_id == user_id,
+                PracticeSession.date == on,
+                PracticeSession.ended_at.is_not(None),
+            )
+            .order_by(PracticeSession.started_at)
+        )
+    )
 
 
 def daily_references(db: Session, start: date, end: date) -> dict[date, str]:

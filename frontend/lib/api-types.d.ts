@@ -46,6 +46,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/passages/{passage_id}/audio/timings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Passage Audio Timings
+         * @description Word-start map for a passage's narration (click-to-jump). Computed on
+         *     the first request per (passage, voice) — one transcription pass — and
+         *     cached forever with the audio.
+         */
+        get: operations["passage_audio_timings_api_passages__passage_id__audio_timings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/passages/{passage_id}/breakdown/audio/timings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Breakdown Audio Timings
+         * @description Word-start map for a breakdown's narration (English only, like the
+         *     audio itself).
+         */
+        get: operations["breakdown_audio_timings_api_passages__passage_id__breakdown_audio_timings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/passages/{passage_id}/breakdown/audio": {
         parameters: {
             query?: never;
@@ -421,6 +464,57 @@ export interface paths {
         get: operations["get_breakdown_api_passages__passage_id__breakdown_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Guides */
+        get: operations["list_guides_api_practice_guides_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Session */
+        post: operations["start_session_api_practice_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/sessions/{session_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End Session */
+        post: operations["end_session_api_practice_sessions__session_id__end_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -818,6 +912,10 @@ export interface components {
             note_count: number;
             /** Read Count */
             read_count: number;
+            /** Session Count */
+            session_count: number;
+            /** Practice Seconds */
+            practice_seconds: number;
         };
         /** CheckoutRequest */
         CheckoutRequest: {
@@ -849,6 +947,8 @@ export interface components {
             notes: components["schemas"]["NoteWithPassageOut"][];
             /** Reads */
             reads: components["schemas"]["ReadWorkOut"][];
+            /** Sessions */
+            sessions: components["schemas"]["SessionOut"][];
         };
         /** ErrorModel */
         ErrorModel: {
@@ -856,6 +956,38 @@ export interface components {
             detail: string | {
                 [key: string]: string;
             };
+        };
+        /** GuideOut */
+        GuideOut: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "morning" | "evening";
+            /** Title */
+            title: string;
+            /** Tagline */
+            tagline: string;
+            /** Steps */
+            steps: components["schemas"]["GuideStepOut"][];
+        };
+        /**
+         * GuideStepOut
+         * @description One step of a guided session. `passage` steps present the day's
+         *     passage (with narration); `prompt` steps seed the journal pad.
+         */
+        GuideStepOut: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "passage" | "prompt";
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1031,10 +1163,51 @@ export interface components {
             /** Passage Count */
             passage_count: number;
         };
+        /** SessionEndIn */
+        SessionEndIn: {
+            /** Steps Completed */
+            steps_completed?: string[];
+        };
+        /** SessionOut */
+        SessionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Guide */
+            guide: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Steps Completed */
+            steps_completed: string[];
+        };
+        /** SessionStartIn */
+        SessionStartIn: {
+            /** Guide */
+            guide?: ("morning" | "evening") | null;
+        };
         /** TierUpdate */
         TierUpdate: {
             /** Tier */
             tier: string;
+        };
+        /** TimingsOut */
+        TimingsOut: {
+            /** Starts */
+            starts: number[];
         };
         /**
          * TocPartOut
@@ -1226,6 +1399,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    passage_audio_timings_api_passages__passage_id__audio_timings_get: {
+        parameters: {
+            query?: {
+                voice?: string;
+            };
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    breakdown_audio_timings_api_passages__passage_id__breakdown_audio_timings_get: {
+        parameters: {
+            query?: {
+                voice?: string;
+            };
+            header?: never;
+            path: {
+                passage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -1993,6 +2232,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BreakdownOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_guides_api_practice_guides_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"][];
+                };
+            };
+        };
+    };
+    start_session_api_practice_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionStartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    end_session_api_practice_sessions__session_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionEndIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
                 };
             };
             /** @description Validation Error */

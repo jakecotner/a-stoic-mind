@@ -22,6 +22,7 @@ erDiagram
         string voice PK
         string media_type
         bytes data
+        json timings "nullable"
         datetime created_at
     }
     daily_passages {
@@ -76,6 +77,7 @@ erDiagram
         string voice PK
         string media_type
         bytes data
+        json timings "nullable"
         datetime created_at
     }
     passage_breakdowns {
@@ -115,6 +117,16 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    practice_sessions {
+        uuid id PK
+        uuid user_id FK
+        date date
+        string guide "nullable"
+        datetime started_at
+        datetime ended_at "nullable"
+        int duration_seconds "nullable"
+        array steps_completed
+    }
     users {
         uuid id PK
         string email UK
@@ -141,4 +153,5 @@ erDiagram
     users ||--o{ passage_reads : "user_id · CASCADE"
     passages ||--o{ passage_reads : "passage_id · CASCADE"
     users ||--o{ practice_intentions : "user_id · CASCADE"
+    users ||--o{ practice_sessions : "user_id · CASCADE"
 ```

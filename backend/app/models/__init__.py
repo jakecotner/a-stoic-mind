@@ -11,7 +11,7 @@ from app.models.daily import DailyPassage
 from app.models.journal import JournalEntry
 from app.models.oauth import OAuthAccount
 from app.models.passage import Passage, PassageBreakdown
-from app.models.practice import PracticeIntention
+from app.models.practice import PracticeIntention, PracticeSession
 from app.models.reading import Note, PassageRead
 from app.models.usage import LlmUsage
 from app.models.user import User
@@ -29,5 +29,6 @@ __all__ = [
     "PassageBreakdown",
     "PassageRead",
     "PracticeIntention",
+    "PracticeSession",
     "User",
 ]

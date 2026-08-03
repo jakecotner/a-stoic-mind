@@ -8,13 +8,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BoldMarkdown from "@/components/BoldMarkdown";
+import PracticeSessionFlow from "@/components/PracticeSessionFlow";
 import {
   fetchCalendar,
   fetchDayDetail,
+  fetchGuides,
   fetchIntention,
   saveIntention,
   type CalendarDay,
   type DayDetail,
+  type Guide,
   type Intention,
 } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
@@ -154,7 +157,8 @@ function DayPanel({ detail }: { detail: DayDetail }) {
   const empty =
     detail.journal.length === 0 &&
     detail.notes.length === 0 &&
-    detail.reads.length === 0;
+    detail.reads.length === 0 &&
+    detail.sessions.length === 0;
 
   return (
     <section>
@@ -169,6 +173,28 @@ function DayPanel({ detail }: { detail: DayDetail }) {
           <blockquote className="mt-1 whitespace-pre-line text-sm leading-relaxed opacity-90">
             {detail.daily.text}
           </blockquote>
+        </div>
+      )}
+
+      {detail.sessions.length > 0 && (
+        <div className="mb-5">
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">
+            Sessions
+          </h3>
+          <ul className="text-sm">
+            {detail.sessions.map((s) => (
+              <li key={s.id}>
+                {s.guide === "morning"
+                  ? "Morning preparation"
+                  : s.guide === "evening"
+                    ? "Evening review"
+                    : "Freeform practice"}{" "}
+                <span className="opacity-60">
+                  — {Math.max(1, Math.round((s.duration_seconds ?? 0) / 60))} min
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -266,17 +292,25 @@ export default function PracticePage() {
     `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`,
   );
   const [detail, setDetail] = useState<DayDetail | null>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
+  // null = no session running; { guide: null } = a freeform session.
+  const [session, setSession] = useState<{ guide: Guide | null } | null>(null);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
   }, [user, loading, router]);
 
   useEffect(() => {
+    fetchGuides().then(setGuides);
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     fetchCalendar(view.year, view.month)
       .then(setDays)
       .catch(() => {});
-  }, [user, view]);
+  }, [user, view, refresh]);
 
   useEffect(() => {
     if (!user || !selected) {
@@ -286,7 +320,7 @@ export default function PracticePage() {
     fetchDayDetail(selected)
       .then(setDetail)
       .catch(() => setDetail(null));
-  }, [user, selected]);
+  }, [user, selected, refresh]);
 
   const shift = useCallback((delta: number) => {
     setView((v) => {
@@ -296,6 +330,19 @@ export default function PracticePage() {
   }, []);
 
   if (loading || !user) return null;
+
+  // A running session takes over the page — one thing at a time.
+  if (session) {
+    return (
+      <PracticeSessionFlow
+        guide={session.guide}
+        onDone={() => {
+          setSession(null);
+          setRefresh((n) => n + 1);
+        }}
+      />
+    );
+  }
 
   const firstWeekday = new Date(view.year, view.month - 1, 1).getDay();
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
@@ -307,6 +354,31 @@ export default function PracticePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Practice</h1>
 
         <IntentionBar />
+
+        {/* Begin a session: the guides, or an unstructured sit. Playing your
+            own music alongside (Spotify or anything else) works fine — the
+            session doesn't touch it. */}
+        <section className="rounded-xl border border-black/10 p-4 dark:border-white/15">
+          <p className="mb-3 text-sm font-medium">Begin a session</p>
+          <div className="flex flex-wrap gap-2">
+            {guides.map((g) => (
+              <button
+                key={g.key}
+                title={g.tagline}
+                className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-medium text-background hover:opacity-85"
+                onClick={() => setSession({ guide: g })}
+              >
+                {g.title}
+              </button>
+            ))}
+            <button
+              className={subtleButtonCls}
+              onClick={() => setSession({ guide: null })}
+            >
+              Just practice
+            </button>
+          </div>
+        </section>
 
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -351,6 +423,14 @@ export default function PracticePage() {
                     {n}
                   </span>
                   <span className="flex flex-wrap gap-1 text-[10px] leading-none">
+                    {day.session_count > 0 && (
+                      <span
+                        title={`${day.session_count} ${day.session_count === 1 ? "session" : "sessions"} — ${Math.max(1, Math.round(day.practice_seconds / 60))} min`}
+                        className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/15"
+                      >
+                        S
+                      </span>
+                    )}
                     {day.read_count > 0 && (
                       <span
                         title={`${day.read_count} passages read`}
@@ -381,8 +461,8 @@ export default function PracticePage() {
             })}
           </div>
           <p className="mt-2 text-xs opacity-50">
-            R read · J journaled · N margin notes — hover a day for the daily
-            passage.
+            S session · R read · J journaled · N margin notes — hover a day
+            for the daily passage.
           </p>
         </section>
       </div>

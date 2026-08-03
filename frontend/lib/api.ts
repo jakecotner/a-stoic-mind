@@ -450,6 +450,49 @@ export async function saveIntention(
   return resp.json();
 }
 
+// --- Practice sessions: one sitting, optionally structured by a guide.
+
+export type Guide = Schema<"GuideOut">;
+export type GuideStep = Schema<"GuideStepOut">;
+export type PracticeSession = Schema<"SessionOut">;
+
+/** The guides are static content; an empty list just hides the launcher. */
+export async function fetchGuides(): Promise<Guide[]> {
+  try {
+    const resp = await fetch("/api/practice/guides");
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function startPracticeSession(
+  guide: Guide["key"] | null,
+): Promise<PracticeSession> {
+  const resp = await fetch("/api/practice/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guide }),
+  });
+  if (!resp.ok)
+    throw new Error(`Could not start the session (${resp.status})`);
+  return resp.json();
+}
+
+export async function endPracticeSession(
+  sessionId: string,
+  stepsCompleted: string[],
+): Promise<PracticeSession> {
+  const resp = await fetch(`/api/practice/sessions/${sessionId}/end`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ steps_completed: stepsCompleted }),
+  });
+  if (!resp.ok) throw new Error(`Could not end the session (${resp.status})`);
+  return resp.json();
+}
+
 // --- Billing. Every call degrades gracefully while Stripe isn't configured:
 // summary falls back to a bare free tier, checkout/portal throw a readable
 // "not live yet" message.
