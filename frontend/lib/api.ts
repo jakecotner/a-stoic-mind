@@ -288,6 +288,30 @@ export const passageAudioUrl = (passageId: string): string =>
 export const breakdownAudioUrl = (passageId: string): string =>
   `/api/passages/${passageId}/breakdown/audio`;
 
+/** Word-start map for a narration: starts[i] = seconds where the i-th
+    whitespace token of the narrated text begins. First request per
+    (passage, voice) runs a one-time transcription pass server-side, so it
+    can take a few seconds; cached forever after. */
+async function fetchTimings(url: string, voice: string): Promise<number[]> {
+  const q = voice ? `?voice=${encodeURIComponent(voice)}` : "";
+  const resp = await fetch(url + q);
+  if (!resp.ok) throw new Error(`Could not load word timings (${resp.status})`);
+  const out: Schema<"TimingsOut"> = await resp.json();
+  return out.starts;
+}
+
+export const fetchPassageTimings = (
+  passageId: string,
+  voice: string,
+): Promise<number[]> =>
+  fetchTimings(`/api/passages/${passageId}/audio/timings`, voice);
+
+export const fetchBreakdownTimings = (
+  passageId: string,
+  voice: string,
+): Promise<number[]> =>
+  fetchTimings(`/api/passages/${passageId}/breakdown/audio/timings`, voice);
+
 /** Speech-to-text for a dictated voice note (authed; shares the journal
     dictation endpoint). Returns the recognized text — saving is separate. */
 export async function transcribeDictation(

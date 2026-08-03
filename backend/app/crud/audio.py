@@ -30,6 +30,15 @@ def insert_passage_audio(
     return row
 
 
+def set_timings(
+    db: Session, row: PassageAudio | BreakdownAudio, starts: list[float]
+) -> None:
+    """Attach the word-start map to a cached recording. Last writer wins —
+    concurrent generators compute identical data."""
+    row.timings = {"starts": starts}
+    db.commit()
+
+
 def get_breakdown_audio(
     db: Session, passage_id: uuid.UUID, language: str, voice: str
 ) -> BreakdownAudio | None:

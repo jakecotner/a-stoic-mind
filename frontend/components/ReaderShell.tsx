@@ -27,6 +27,8 @@ import {
   breakdownAudioUrl,
   createNote,
   fetchBreakdown,
+  fetchBreakdownTimings,
+  fetchPassageTimings,
   passageAudioUrl,
   type Passage,
   type Work,
@@ -37,10 +39,57 @@ import {
   type QueueItem,
   getNarrationSnapshot,
   getServerNarrationSnapshot,
+  getVoicePref,
   startNarration,
   stopIfOwner,
   subscribeNarration,
 } from "@/lib/narration";
+
+/** Which whitespace token of `container`'s text a click landed on, or null
+    when the click wasn't on text. Token indices line up with the timing
+    maps the backend serves (both sides split on whitespace). */
+function wordIndexFromPoint(
+  container: HTMLElement,
+  x: number,
+  y: number
+): number | null {
+  type CaretPos = { offsetNode: Node; offset: number };
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => CaretPos | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  let node: Node | null = null;
+  let offset = 0;
+  if (doc.caretPositionFromPoint) {
+    const p = doc.caretPositionFromPoint(x, y);
+    if (p) {
+      node = p.offsetNode;
+      offset = p.offset;
+    }
+  } else if (doc.caretRangeFromPoint) {
+    const r = doc.caretRangeFromPoint(x, y);
+    if (r) {
+      node = r.startContainer;
+      offset = r.startOffset;
+    }
+  }
+  if (!node || node.nodeType !== Node.TEXT_NODE || !container.contains(node))
+    return null;
+  let chars = 0;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    if (n === node) {
+      chars += offset;
+      break;
+    }
+    chars += (n.textContent ?? "").length;
+  }
+  const before = (container.textContent ?? "").slice(0, chars);
+  const tokensBefore = before.split(/\s+/).filter(Boolean).length;
+  // A click inside a word counts that word itself, not the next one.
+  return Math.max(0, /\S$/.test(before) ? tokensBefore - 1 : tokensBefore);
+}
 
 type NavLink = { href: string; label: string } | null;
 
@@ -53,10 +102,13 @@ function BreakdownPanel({
   passage,
   onClose,
   queueFrom,
+  onTextJump,
 }: {
   passage: Passage;
   onClose: () => void;
   queueFrom?: (mode: ContinueMode) => QueueItem[];
+  /** Click-to-jump inside the breakdown text while narration is active. */
+  onTextJump?: (e: React.MouseEvent<HTMLElement>) => void;
 }) {
   // Session-local cache: reopening a passage shouldn't refetch.
   const cache = useRef(new Map<string, string | null>());
@@ -124,7 +176,9 @@ function BreakdownPanel({
         )}
         {state.kind === "done" &&
           (state.text ? (
-            <BoldMarkdown text={state.text} />
+            <div data-narr-text onClick={onTextJump}>
+              <BoldMarkdown text={state.text} />
+            </div>
           ) : (
             <p className="text-sm opacity-60">
               This passage&apos;s breakdown isn&apos;t available right now —
@@ -217,7 +271,7 @@ export default function ReaderShell({
   }, []);
 
   const queueFrom = useCallback(
-    (start: number, mode: ContinueMode): QueueItem[] => {
+    (start: number, mode: ContinueMode, startAt?: number): QueueItem[] => {
       const rest =
         mode === "off" ? passages.slice(start, start + 1) : passages.slice(start);
       const items: QueueItem[] = [];
@@ -235,20 +289,45 @@ export default function ReaderShell({
             prepare: () => ensureBreakdown(p.id),
           });
       }
+      if (items.length && startAt) items[0] = { ...items[0], startAt };
       return items;
     },
     [passages, ensureBreakdown]
   );
 
+  // Word-timing maps, cached per (kind, passage, voice). Failures aren't
+  // cached — a later click retries; the caller degrades to passage start.
+  const timingsCache = useRef(new Map<string, Promise<number[]>>());
+  const timingsFor = useCallback(
+    (kind: "passage" | "breakdown", passageId: string): Promise<number[]> => {
+      const voice = getVoicePref();
+      const key = `${kind}:${passageId}:${voice}`;
+      let p = timingsCache.current.get(key);
+      if (!p) {
+        p = (kind === "passage"
+          ? fetchPassageTimings(passageId, voice)
+          : fetchBreakdownTimings(passageId, voice)
+        ).catch((err) => {
+          timingsCache.current.delete(key);
+          throw err;
+        });
+        timingsCache.current.set(key, p);
+      }
+      return p;
+    },
+    []
+  );
+
   // A play from the companion panel starts at the breakdown itself, then
   // follows the same plan as any other listen.
   const breakdownQueueFrom = useCallback(
-    (p: Passage, mode: ContinueMode): QueueItem[] => {
+    (p: Passage, mode: ContinueMode, startAt?: number): QueueItem[] => {
       const head: QueueItem = {
         src: breakdownAudioUrl(p.id),
         passageId: p.id,
         kind: "breakdown",
         prepare: () => ensureBreakdown(p.id),
+        startAt,
       };
       const i = passages.findIndex((x) => x.id === p.id);
       if (mode === "off" || i < 0) return [head];
@@ -299,15 +378,61 @@ export default function ReaderShell({
     []
   );
   const passageClick = useCallback(
-    (p: Passage, i: number) => {
-      if (narratingId) {
-        jumpToken.current = startNarration((mode) => queueFrom(i, mode));
-      } else {
+    async (p: Passage, i: number, e?: React.MouseEvent<HTMLElement>) => {
+      if (!narratingId) {
         setSelected((cur) => (cur?.id === p.id ? null : p));
+        return;
       }
+      // Everything DOM-related happens before the await — React nulls the
+      // event's currentTarget once the handler returns.
+      let word: number | null = null;
+      if (e) {
+        const container =
+          e.currentTarget.querySelector<HTMLElement>("[data-narr-text]");
+        if (container) word = wordIndexFromPoint(container, e.clientX, e.clientY);
+      }
+      let startAt: number | undefined;
+      if (word !== null) {
+        try {
+          const starts = await timingsFor("passage", p.id);
+          startAt = starts[Math.min(word, starts.length - 1)];
+        } catch {
+          // No timings — land on the passage start instead.
+        }
+      }
+      jumpToken.current = startNarration((mode) => queueFrom(i, mode, startAt));
     },
-    [narratingId, queueFrom]
+    [narratingId, queueFrom, timingsFor]
   );
+
+  // A click inside the breakdown text (side panel) jumps the narration to
+  // that word of the reflection, then follows the usual plan.
+  const breakdownTextJump = useCallback(
+    async (p: Passage, e: React.MouseEvent<HTMLElement>) => {
+      if (!narratingId) return;
+      const word = wordIndexFromPoint(e.currentTarget, e.clientX, e.clientY);
+      let startAt: number | undefined;
+      if (word !== null) {
+        try {
+          const starts = await timingsFor("breakdown", p.id);
+          startAt = starts[Math.min(word, starts.length - 1)];
+        } catch {
+          // No timings — start the reflection from the top.
+        }
+      }
+      jumpToken.current = startNarration((mode) =>
+        breakdownQueueFrom(p, mode, startAt)
+      );
+    },
+    [narratingId, timingsFor, breakdownQueueFrom]
+  );
+
+  // Warm the timing map for whatever is being narrated, so a click inside
+  // it jumps without the one-time transcription wait.
+  useEffect(() => {
+    if (narratingId && narratingKind)
+      timingsFor(narratingKind, narratingId).catch(() => {});
+  }, [narratingId, narratingKind, timingsFor]);
 
   const autoOpened = useRef(false);
   useEffect(() => {
@@ -375,11 +500,11 @@ export default function ReaderShell({
                       ? "bg-black/[.05] dark:bg-white/[.08]"
                       : "hover:bg-black/[.03] dark:hover:bg-white/[.04]"
                   }`}
-                  onClick={() => passageClick(p, i)}
+                  onClick={(e) => void passageClick(p, i, e)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      passageClick(p, i);
+                      void passageClick(p, i);
                     }
                   }}
                 >
@@ -391,7 +516,7 @@ export default function ReaderShell({
                       queueFrom={(mode) => queueFrom(i, mode)}
                     />
                   </p>
-                  <p className="whitespace-pre-line leading-relaxed">
+                  <p data-narr-text className="whitespace-pre-line leading-relaxed">
                     {p.text}
                   </p>
                 </div>
@@ -434,6 +559,7 @@ export default function ReaderShell({
               passage={selected}
               onClose={close}
               queueFrom={(mode) => breakdownQueueFrom(selected, mode)}
+              onTextJump={(e) => void breakdownTextJump(selected, e)}
             />
           </aside>
         )}

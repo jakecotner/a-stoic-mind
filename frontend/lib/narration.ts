@@ -21,6 +21,9 @@ export type QueueItem = {
   /** Ensure the item can play (e.g. the breakdown text exists — audio
       404s otherwise). Resolve false to skip the item silently. */
   prepare?: () => Promise<boolean>;
+  /** Start playback this many seconds in (click-to-jump on a word).
+      Meaningful on the first item of a queue. */
+  startAt?: number;
 };
 
 export type NarrationState =
@@ -120,6 +123,10 @@ let prefetched: string | null = null;
 // True while WE paused the element (a dictation interlude) — tells the
 // pause handler apart from a hardware/OS pause, which means "stop".
 let suspended = false;
+// A pending word-level jump: play is held until the target second is inside
+// the buffer (the audio endpoint has no Range support, so seeking past the
+// buffer would restart the stream from zero).
+let seekTarget: { t: number; token: number } | null = null;
 
 const listeners = new Set<() => void>();
 const IDLE: NarrationSnapshot = { state: "idle", item: null };
@@ -150,17 +157,22 @@ if (typeof window !== "undefined") {
     state: snapshot.state,
     src: snapshot.item?.src ?? null,
     suspended,
+    t: audio?.currentTime ?? 0,
   });
 }
 
 function ensureAudio(): HTMLAudioElement {
   if (audio) return audio;
   const a = new Audio();
+  a.preload = "auto";
   a.onplaying = () => {
     emit("playing");
     prefetchNext();
   };
   a.onended = () => advance(run);
+  a.onprogress = trySeek;
+  a.onloadeddata = trySeek;
+  a.oncanplaythrough = trySeek;
   // Fires for hardware/OS pauses (headphones, media keys) — treat like a
   // stop, matching the old one-button behavior. Our own stop() clears the
   // src first, so `a.currentSrc` distinguishes the two.
@@ -172,11 +184,39 @@ function ensureAudio(): HTMLAudioElement {
     if (a.currentSrc && snapshot.state !== "idle") {
       run++;
       builder = null;
+      seekTarget = null;
       emit("failed");
     }
   };
   audio = a;
   return a;
+}
+
+/** Complete a pending word-level jump once the buffer has reached the
+    target (or holds the whole file), then start playback there. */
+function trySeek() {
+  if (!seekTarget || !audio) return;
+  if (seekTarget.token !== run) {
+    seekTarget = null;
+    return;
+  }
+  const a = audio;
+  const end = a.buffered.length ? a.buffered.end(a.buffered.length - 1) : 0;
+  if (end <= 0) return;
+  const fullyLoaded = isFinite(a.duration) && end >= a.duration - 0.3;
+  if (end < seekTarget.t + 0.2 && !fullyLoaded) return;
+  const token = seekTarget.token;
+  // Duration estimates lie for concatenated MP3s — clamp to the buffer.
+  const target = Math.min(seekTarget.t, Math.max(0, end - 0.2));
+  seekTarget = null;
+  a.currentTime = target;
+  a.play().catch(() => {
+    if (token === run) {
+      run++;
+      builder = null;
+      emit("failed");
+    }
+  });
 }
 
 /** Start a run. `build` is kept so a mid-flight continue-mode change can
@@ -235,6 +275,7 @@ function stop() {
   index = -1;
   prefetched = null;
   suspended = false;
+  seekTarget = null;
   if (audio) {
     audio.pause();
     audio.removeAttribute("src"); // abort any in-flight fetch
@@ -270,6 +311,25 @@ async function advance(token: number) {
   const a = audio!;
   a.src = withVoice(item.src);
   a.playbackRate = getPacePref();
+  if (item.startAt && item.startAt > 0.3) {
+    // Hold playback until the buffer reaches the jump target; if buffering
+    // stalls badly, give up on precision and play from the top.
+    seekTarget = { t: item.startAt, token };
+    window.setTimeout(() => {
+      if (seekTarget && seekTarget.token === token && token === run) {
+        seekTarget = null;
+        a.play().catch(() => {
+          if (token === run) {
+            run++;
+            builder = null;
+            emit("failed");
+          }
+        });
+      }
+    }, 8000);
+    trySeek(); // an already-cached file may be seekable immediately
+    return;
+  }
   a.play().catch(() => {
     if (token === run) {
       run++;

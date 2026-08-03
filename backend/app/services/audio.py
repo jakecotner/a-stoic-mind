@@ -169,3 +169,104 @@ def narrate_breakdown(
     return audio_crud.insert_breakdown_audio(
         db, passage_id, language, voice, media_type, data
     )
+
+
+# --- Word timings (click-to-jump). The TTS API returns no timestamps, so we
+# run the finished recording back through speech-to-text asking for
+# word-level timestamps and align them to the narrated text. whisper-1 is
+# hardcoded: it's the only transcription model that returns word timestamps.
+TIMING_STT_MODEL = "whisper-1"
+
+
+def _transcribe_words(data: bytes, media_type: str) -> list[dict]:
+    """Word-level timestamps for a recording: [{word, start, end}, ...]."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(503, "Audio narration is not configured")
+    resp = httpx.post(
+        "https://api.openai.com/v1/audio/transcriptions",
+        headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+        data={
+            "model": TIMING_STT_MODEL,
+            "response_format": "verbose_json",
+            "timestamp_granularities[]": "word",
+        },
+        files={"file": ("narration.mp3", data, media_type or "audio/mpeg")},
+        timeout=120.0,
+    )
+    if resp.status_code != 200:
+        logger.error(
+            "timing STT request failed: %s %s", resp.status_code, resp.text[:500]
+        )
+        raise HTTPException(502, "Timing analysis failed")
+    return list(resp.json().get("words", []))
+
+
+def _norm_word(w: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", w.lower())
+
+
+def _align_starts(text: str, words: list[dict]) -> list[float]:
+    """starts[i] = start second of the i-th whitespace token of `text`.
+
+    The transcript of a TTS recording of this very text is near-verbatim, so
+    a greedy monotonic match with a small lookahead window is enough; tokens
+    the transcript skipped (numbers read differently, odd punctuation)
+    inherit the previous known time, keeping the map monotonic."""
+    tokens = text.split()
+    starts: list[float | None] = [None] * len(tokens)
+    j = 0
+    for i, tok in enumerate(tokens):
+        t = _norm_word(tok)
+        if not t:
+            continue
+        for k in range(j, min(j + 8, len(words))):
+            w = _norm_word(str(words[k].get("word", "")))
+            if w and (w == t or w in t or t in w):
+                starts[i] = float(words[k].get("start", 0.0))
+                j = k + 1
+                break
+    last = 0.0
+    filled: list[float] = []
+    for s in starts:
+        if s is not None and s >= last:
+            last = s
+        filled.append(last)
+    return filled
+
+
+def passage_timings(db: Session, passage_id: uuid.UUID, voice: str) -> list[float]:
+    """The word-start map for a passage's narration, computed once per
+    (passage, voice) and cached on the audio row. Synthesizes the narration
+    first if nobody has listened yet."""
+    row = audio_crud.get_passage_audio(db, passage_id, voice)
+    if row is None:
+        row = narrate_passage(db, passage_id, voice)
+    if row.timings and "starts" in row.timings:
+        return row.timings["starts"]
+    passage = passage_crud.get(db, passage_id)
+    if passage is None:
+        raise HTTPException(404, "Passage not found")
+    starts = _align_starts(passage.text, _transcribe_words(row.data, row.media_type))
+    audio_crud.set_timings(db, row, starts)
+    return starts
+
+
+def breakdown_timings(
+    db: Session, passage_id: uuid.UUID, language: str, voice: str
+) -> list[float]:
+    """Like passage_timings, for a breakdown's narration (aligned against the
+    markdown-stripped text the narrator actually read)."""
+    row = audio_crud.get_breakdown_audio(db, passage_id, language, voice)
+    if row is None:
+        row = narrate_breakdown(db, passage_id, language, voice)
+    if row.timings and "starts" in row.timings:
+        return row.timings["starts"]
+    breakdown = passage_crud.get_breakdown(db, passage_id, language)
+    if breakdown is None:
+        raise HTTPException(404, "Breakdown not available yet")
+    starts = _align_starts(
+        strip_markdown(breakdown.text), _transcribe_words(row.data, row.media_type)
+    )
+    audio_crud.set_timings(db, row, starts)
+    return starts

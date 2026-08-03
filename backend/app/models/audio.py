@@ -16,7 +16,7 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -33,6 +33,10 @@ class PassageAudio(Base):
     voice: Mapped[str] = mapped_column(String(50), primary_key=True)
     media_type: Mapped[str] = mapped_column(String(50))
     data: Mapped[bytes] = mapped_column(LargeBinary)
+    # Word-start map for click-to-jump: {"starts": [seconds, ...]}, one entry
+    # per whitespace token of the narrated text. Computed on first request by
+    # transcribing this very recording (voice pacing differs), cached forever.
+    timings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -59,6 +63,7 @@ class BreakdownAudio(Base):
     voice: Mapped[str] = mapped_column(String(50), primary_key=True)
     media_type: Mapped[str] = mapped_column(String(50))
     data: Mapped[bytes] = mapped_column(LargeBinary)
+    timings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
