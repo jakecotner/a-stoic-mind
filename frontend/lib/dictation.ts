@@ -38,6 +38,9 @@ export type DictationSnapshot = {
   armed: boolean;
   /** A page has registered a note saver (implies a signed-in user). */
   available: boolean;
+  /** How loudly the detector hears the room right now (0..1) — surfaced
+      so the mic chip can visibly react to the listener's voice. */
+  level: number;
 };
 
 const ARMED_KEY = "astoicmind:voice-notes";
@@ -50,6 +53,12 @@ const SILENCE_SEC = 1.9; // sustained quiet to finish a take
 const MIN_SPEECH_SEC = 0.7; // shorter takes are discarded as false triggers
 const MAX_TAKE_SEC = 120;
 const UPLOAD_RATE = 16_000; // whisper-grade mono
+// Absolute RMS bounds. Deliberately low: with the narrator playing
+// through speakers, the browser's echo canceller can attenuate the
+// listener's own voice quite a lot before it reaches us.
+const ONSET_RMS = 0.012;
+const RELEASE_RMS = 0.008;
+const FLOOR_CAP = 0.03;
 
 type Saver = (passageId: string, text: string) => Promise<void>;
 
@@ -73,13 +82,20 @@ let belowSec = 0;
 let floor = 0.008;
 let flashTimer: number | null = null;
 let unsubNarration: (() => void) | null = null;
+let level = 0;
+let levelBucket = -1;
 
 const listeners = new Set<() => void>();
-const IDLE: DictationSnapshot = { status: "off", armed: false, available: false };
+const IDLE: DictationSnapshot = {
+  status: "off",
+  armed: false,
+  available: false,
+  level: 0,
+};
 let snapshot: DictationSnapshot = IDLE;
 
 function emit() {
-  snapshot = { status, armed, available: saver != null };
+  snapshot = { status, armed, available: saver != null, level };
   listeners.forEach((l) => l());
 }
 
@@ -139,8 +155,15 @@ function narrationActive(): boolean {
 }
 
 function sync() {
-  if (saver && armed && narrationActive()) void openSession();
-  else closeSession();
+  if (saver && armed && narrationActive()) {
+    void openSession();
+    // Autoplay policy can leave a fresh context suspended; narration
+    // events and chip clicks are frequent chances to nudge it awake.
+    if (audioCtx && audioCtx.state === "suspended")
+      audioCtx.resume().catch(() => {});
+  } else {
+    closeSession();
+  }
 }
 
 async function openSession() {
@@ -220,11 +243,19 @@ function onAudio(e: AudioProcessingEvent) {
   let sum = 0;
   for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
   const rms = Math.sqrt(sum / input.length);
-  floor = rms < floor ? rms : Math.min(floor * 1.02 + 0.0002, 0.05);
-  if (floor < 0.002) floor = 0.002;
-  const onset = Math.max(floor * 3, 0.02);
-  const release = Math.max(floor * 2, 0.012);
+  floor = rms < floor ? rms : Math.min(floor * 1.02 + 0.0002, FLOOR_CAP);
+  if (floor < 0.0015) floor = 0.0015;
+  const onset = Math.max(floor * 3, ONSET_RMS);
+  const release = Math.max(floor * 2, RELEASE_RMS);
   const copy = new Float32Array(input); // the input buffer is reused
+
+  // Feed the chip's level glow (quantized so renders stay rare).
+  level = Math.min(1, rms * 12);
+  const bucket = Math.round(level * 6);
+  if (bucket !== levelBucket) {
+    levelBucket = bucket;
+    if (status === "listening" || status === "recording") emit();
+  }
 
   if (!recording) {
     ring.push(copy);

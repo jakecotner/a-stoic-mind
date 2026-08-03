@@ -62,7 +62,9 @@ function micChip(d: DictationSnapshot): { text: string; label: string } {
     default:
       return {
         text: "mic on",
-        label: "Voice notes: on — just start talking; click to turn off",
+        label:
+          "Voice notes: on — just start talking (the chip brightens as it " +
+          "hears you); click to turn off",
       };
   }
 }
@@ -276,6 +278,11 @@ export function PlayButton({
               ? "animate-pulse text-red-600 opacity-100 dark:text-red-400"
               : ""
           }`}
+          style={
+            dictation.status === "listening"
+              ? { opacity: 0.45 + dictation.level * 0.55 }
+              : undefined
+          }
           onClick={(e) => {
             e.stopPropagation();
             setVoiceNotesArmed(!dictation.armed);

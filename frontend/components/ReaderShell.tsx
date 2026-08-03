@@ -37,6 +37,8 @@ import {
   type QueueItem,
   getNarrationSnapshot,
   getServerNarrationSnapshot,
+  startNarration,
+  stopIfOwner,
   subscribeNarration,
 } from "@/lib/narration";
 
@@ -286,6 +288,27 @@ export default function ReaderShell({
     prevNarrating.current = narratingId;
   }, [narratingId]);
 
+  // While this page is narrating, the text doubles as a transport: click
+  // any passage to jump the reading there (same continue mode). The click
+  // is only a panel toggle when nothing is playing.
+  const jumpToken = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (jumpToken.current !== null) stopIfOwner(jumpToken.current);
+    },
+    []
+  );
+  const passageClick = useCallback(
+    (p: Passage, i: number) => {
+      if (narratingId) {
+        jumpToken.current = startNarration((mode) => queueFrom(i, mode));
+      } else {
+        setSelected((cur) => (cur?.id === p.id ? null : p));
+      }
+    },
+    [narratingId, queueFrom]
+  );
+
   const autoOpened = useRef(false);
   useEffect(() => {
     if (!narratingId) {
@@ -342,17 +365,21 @@ export default function ReaderShell({
                 <div
                   role="button"
                   tabIndex={0}
-                  aria-label={`Open companion panel for ${p.reference}`}
+                  aria-label={
+                    narratingId
+                      ? `Jump the narration to ${p.reference}`
+                      : `Open companion panel for ${p.reference}`
+                  }
                   className={`-mx-2 cursor-pointer rounded-lg px-2 py-1 transition-colors ${
                     selected?.id === p.id || narratingId === p.id
                       ? "bg-black/[.05] dark:bg-white/[.08]"
                       : "hover:bg-black/[.03] dark:hover:bg-white/[.04]"
                   }`}
-                  onClick={() => setSelected(selected?.id === p.id ? null : p)}
+                  onClick={() => passageClick(p, i)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setSelected(selected?.id === p.id ? null : p);
+                      passageClick(p, i);
                     }
                   }}
                 >

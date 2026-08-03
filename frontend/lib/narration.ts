@@ -141,6 +141,18 @@ export const subscribeNarration = (l: () => void): (() => void) => {
 export const getNarrationSnapshot = (): NarrationSnapshot => snapshot;
 export const getServerNarrationSnapshot = (): NarrationSnapshot => IDLE;
 
+// Debug peephole (harmless in prod; used by browser drives).
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__narrDebug = () => ({
+    run,
+    index,
+    queueLen: queue.length,
+    state: snapshot.state,
+    src: snapshot.item?.src ?? null,
+    suspended,
+  });
+}
+
 function ensureAudio(): HTMLAudioElement {
   if (audio) return audio;
   const a = new Audio();
