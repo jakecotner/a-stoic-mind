@@ -5,11 +5,11 @@ never break the user-facing response, so errors are logged and swallowed.
 Opens its own session so call sites can record after their request-scoped
 session is done with other work.
 
-Cap: free-tier users get a monthly allowance of metered turns (today:
-journal reflections), counted from llm_usage over the current calendar
-month (UTC). "plus" and superusers are uncapped. Breakdowns are NOT
-metered — they're a shared cache, recorded with no user for the admin
-cost rollup.
+Cap: free-tier users get ONE monthly allowance of metered turns — journal
+reflections and mentor chat turns draw from the same pool — counted from
+llm_usage over the current calendar month (UTC). "plus" and superusers are
+uncapped. Breakdowns are NOT metered — they're a shared cache, recorded
+with no user for the admin cost rollup.
 """
 import logging
 import uuid
@@ -25,8 +25,8 @@ from app.models import User
 
 logger = logging.getLogger(__name__)
 
-# The usage kind that counts against the free-tier monthly allowance.
-METERED_KIND = "reflection"
+# The usage kinds that count against the free-tier monthly allowance.
+METERED_KINDS = ("reflection", "chat")
 
 
 def record_usage(
@@ -53,7 +53,7 @@ def record_usage(
 
 
 def turns_this_month(db: Session, user_id: uuid.UUID) -> int:
-    return usage_crud.count_turns_this_month(db, user_id, METERED_KIND)
+    return usage_crud.count_turns_this_month(db, user_id, METERED_KINDS)
 
 
 def _cap_error(used: int, limit: int) -> HTTPException:

@@ -38,6 +38,21 @@ def for_user_on(db: Session, user_id: uuid.UUID, on: date) -> list[JournalEntry]
     )
 
 
+def recent_for_user(
+    db: Session, user_id: uuid.UUID, limit: int
+) -> list[JournalEntry]:
+    """The newest `limit` entries across all days, returned oldest-first
+    (chat context reads chronologically)."""
+    return list(
+        db.scalars(
+            select(JournalEntry)
+            .where(JournalEntry.user_id == user_id)
+            .order_by(JournalEntry.created_at.desc())
+            .limit(limit)
+        )
+    )[::-1]
+
+
 def count_for_user(db: Session, user_id: uuid.UUID) -> int:
     return (
         db.scalar(

@@ -74,17 +74,23 @@ Removal: delete the files above, remove the three imports/includes
 (models/__init__.py, main.py, Header link), remove the robots entries and
 the api.ts section. `crud/user.py::get_by_email` stays (generic).
 
-## chat (LLM conversations) — REMOVED from this project (2026-07)
+## chat (LLM conversations) — REINSTATED (2026-08) as "the mentor"
 
-The standalone chat surface was removed in favor of the journal as the
-first-class page. The file list below is kept as the reinstatement
-checklist. Metering was kept (billing reads it; the daily breakdown
-records global usage through it), and `services/llm.py` was kept for the
-daily-passage breakdown. The account page hides the "turns used" line
-while nothing user-facing is metered.
+Removed 2026-07 in favor of the journal as the first-class page;
+reinstated 2026-08 as a Stoic-mentor chat (`/chat`, "Mentor" in the
+sidebar). Differences from the original module:
 
-Streaming SSE chat with persisted conversations; anonymous taste allowance.
-Needs the metering module.
+- **Signed-in only** — the anonymous per-IP taste allowance was NOT
+  reinstated (its IP-metering machinery is gone; unmetered anonymous LLM
+  turns would be an open cost hole). Reinstate per-IP metering first if
+  anonymous chat comes back.
+- The mentor always sees today's passage; `conversations.share_journal`
+  (off by default, per-conversation, PATCH to toggle) opts the user's
+  recent journal entries into the context.
+- Chat turns and journal reflections draw from ONE free monthly allowance
+  (`services/usage.py::METERED_KINDS`).
+
+Streaming SSE chat with persisted conversations. Needs the metering module.
 
 Files (backend): `app/models/conversation.py` (+ imports),
 `app/schemas/chat.py`, `app/crud/conversation.py`, `app/services/chat.py`,

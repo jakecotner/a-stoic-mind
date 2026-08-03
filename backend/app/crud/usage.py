@@ -38,14 +38,16 @@ def _month_start() -> datetime:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-def count_turns_this_month(db: Session, user_id: uuid.UUID, kind: str) -> int:
+def count_turns_this_month(
+    db: Session, user_id: uuid.UUID, kinds: tuple[str, ...]
+) -> int:
     return (
         db.scalar(
             select(func.count())
             .select_from(LlmUsage)
             .where(
                 LlmUsage.user_id == user_id,
-                LlmUsage.kind == kind,
+                LlmUsage.kind.in_(kinds),
                 LlmUsage.created_at >= _month_start(),
             )
         )

@@ -1,14 +1,86 @@
-"""Claude integration: passage breakdowns and journal-entry reflections.
+"""Claude integration: the mentor chat, passage breakdowns, and
+journal-entry reflections.
 
 System prompts are byte-stable and carry a cache_control breakpoint —
 prompt caching is a prefix match, so all volatile content (the passage,
-the entry text) goes in the messages array after it.
+the entry text, chat context and history) goes in the messages array
+after it.
 """
+
+from collections.abc import Iterator
 
 import anthropic
 
 from app.core.config import get_settings
-from app.models import Passage
+from app.models import Message, Passage
+
+# DRAFT VOICE — the product owner owns this copy; adjust freely. Keep it
+# byte-stable at runtime (see module docstring).
+MENTOR_SYSTEM_PROMPT = """\
+You are the mentor behind "A Stoic Mind", a reading companion for the
+classic Stoic texts. You speak as a seasoned student of the Stoa — someone
+who has read Marcus Aurelius, Epictetus, Seneca, and Musonius Rufus closely
+and tries to practice what they teach.
+
+- A good mentor listens first: begin from what the person actually said,
+  not from the lesson you want to give.
+- Ground what you say in the classical texts. Cite passages by their
+  customary references (Meditations 4.7, Enchiridion 5, Letters 91,
+  Lectures 6) when they genuinely speak to the matter — never as
+  decoration.
+- Stoicism is a practice, not trivia. Prefer one thing the person can do
+  or reconsider today over a survey of doctrine.
+- Hold the Stoic line honestly: keep the distinction between what is up to
+  us and what is not, and don't soften it into generic self-help. But be
+  humane — the Stoics were.
+- Plain prose, warm and direct. No therapy-speak, no emoji, no bullet-point
+  sermons unless asked. A few short paragraphs unless depth is asked for.
+- A <context> block may accompany the person's message (the day's passage,
+  and — only when they chose to share it — recent journal entries). Draw on
+  it naturally when relevant; never recite it back, and never mention the
+  mechanism by which you received it.
+"""
+
+
+def stream_reply(
+    history: list[Message],
+    user_message: str,
+    context: str | None = None,
+) -> Iterator[str | anthropic.types.Message]:
+    """Yield text deltas, then the final anthropic Message object last.
+
+    `context` (the day's passage, opted-in journal excerpts) is injected
+    into the current turn only — it is never persisted with the message,
+    so history stays clean and today's context is always current.
+    """
+    settings = get_settings()
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    messages: list[dict] = [
+        {"role": m.role, "content": m.content} for m in history
+    ]
+    content = user_message
+    if context:
+        content = f"<context>\n{context}\n</context>\n\n{user_message}"
+    messages.append({"role": "user", "content": content})
+
+    with client.messages.stream(
+        model=settings.anthropic_model,
+        max_tokens=settings.chat_max_tokens,
+        system=[
+            {
+                "type": "text",
+                "text": MENTOR_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        thinking={"type": "adaptive"},
+        output_config={"effort": settings.chat_effort},
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
+        yield stream.get_final_message()
 
 # DRAFT VOICE — the product owner owns this copy; adjust freely. Keep it
 # byte-stable at runtime (see module docstring).

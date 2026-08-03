@@ -60,6 +60,12 @@ class Settings(BaseSettings):
 
     anthropic_model: str = "claude-opus-4-8"
 
+    # Chat (the mentor). Effort/token knobs for the streaming reply; history
+    # cap bounds how much of a long thread rides along on each turn.
+    chat_effort: str = "medium"
+    chat_max_tokens: int = 8192
+    history_max_messages: int = 20
+
     # Passage narration (OpenAI speech API; Anthropic has no TTS). Leave the
     # key unset to disable audio — the audio endpoints return 503 and the
     # frontend's play buttons report narration as unavailable.

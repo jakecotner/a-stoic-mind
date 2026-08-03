@@ -7,8 +7,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      // The authed app surface has nothing to index.
-      disallow: ["/account", "/practice", "/verify", "/api/"],
+      // Practice and Account now render public shells; only chat threads,
+      // the token flows, and the API stay out of the index.
+      disallow: ["/chat", "/verify", "/reset-password", "/api/"],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };

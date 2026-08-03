@@ -8,6 +8,7 @@ from app.routes.admin import router as admin_router
 from app.routes.audio import router as audio_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
+from app.routes.chat import router as chat_router
 from app.routes.daily import router as daily_router
 from app.routes.journal import router as journal_router
 from app.routes.passage import router as passage_router
@@ -66,6 +67,7 @@ app.include_router(journal_router)
 app.include_router(passage_router)
 app.include_router(practice_router)
 app.include_router(reading_router)
+app.include_router(chat_router)  # optional module — see app/services/chat.py
 app.include_router(billing_router)
 app.include_router(admin_router)
 

@@ -25,6 +25,13 @@ erDiagram
         json timings "nullable"
         datetime created_at
     }
+    conversations {
+        uuid id PK
+        uuid user_id FK "nullable"
+        string title "nullable"
+        bool share_journal
+        datetime created_at
+    }
     daily_passages {
         uuid id PK
         date date UK
@@ -51,6 +58,13 @@ erDiagram
         int output_tokens
         int cache_creation_input_tokens
         int cache_read_input_tokens
+        datetime created_at
+    }
+    messages {
+        uuid id PK
+        uuid conversation_id FK
+        string role
+        text content
         datetime created_at
     }
     notes {
@@ -141,10 +155,12 @@ erDiagram
     }
     passage_breakdowns ||--o{ breakdown_audio : "passage_id · CASCADE"
     passage_breakdowns ||--o{ breakdown_audio : "language · CASCADE"
+    users |o--o{ conversations : "user_id · SET NULL"
     passages ||--o{ daily_passages : "passage_id · CASCADE"
     users ||--o{ journal_entries : "user_id · CASCADE"
     passages |o--o{ journal_entries : "passage_id · SET NULL"
     users |o--o{ llm_usage : "user_id · SET NULL"
+    conversations ||--o{ messages : "conversation_id · CASCADE"
     users ||--o{ notes : "user_id · CASCADE"
     passages |o--o{ notes : "passage_id · SET NULL"
     users ||--o{ oauth_accounts : "user_id · CASCADE"
