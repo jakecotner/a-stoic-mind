@@ -474,6 +474,12 @@ export default function ReaderShell({
             <p className="mt-1 text-sm opacity-60">
               translated by {work.translator}
             </p>
+            <p className="mt-3 text-xs opacity-50">
+              Click a passage for its plain-spoken breakdown, or press play
+              to listen — while narration plays, clicking any word jumps the
+              reading there. Signed in, your margin notes keep alongside the
+              text.
+            </p>
           </header>
 
           <div className="flex flex-col gap-8">

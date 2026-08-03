@@ -257,6 +257,12 @@ export default function JournalPad({
         </button>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      {entries.length === 0 && (
+        <p className="text-xs opacity-50">
+          Saved entries receive a short reflection, and each day you write is
+          marked on your practice calendar.
+        </p>
+      )}
       {reflectNotice && (
         <p className="rounded-lg border border-black/15 px-3 py-2 text-xs opacity-80 dark:border-white/20">
           {reflectNotice}

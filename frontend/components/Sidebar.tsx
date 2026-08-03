@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { logout } from "@/lib/api";
+import { TOUR_OPEN_EVENT } from "@/components/Tour";
 import { useUser } from "@/lib/useUser";
 
 const COLLAPSED_KEY = "sidebar-collapsed";
@@ -88,6 +89,16 @@ function SparkIcon() {
   );
 }
 
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`}>
@@ -102,16 +113,20 @@ function NavLink({
   icon,
   active,
   collapsed,
+  tour,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
   active: boolean;
   collapsed: boolean;
+  /** Anchor name for the getting-started tour's spotlight. */
+  tour?: string;
 }) {
   return (
     <Link
       href={href}
+      data-tour={tour}
       title={collapsed ? label : undefined}
       className={`flex items-center gap-3 rounded px-2.5 py-2 text-sm ${
         active
@@ -170,13 +185,24 @@ export default function Sidebar() {
         </button>
       </div>
 
+      {/* Every page is browsable signed out — the links stay put and the
+          pages themselves say what needs an account. */}
       <nav className="flex flex-col gap-1 px-2">
+        <NavLink
+          href="/"
+          label="Journal"
+          icon={<PenIcon />}
+          active={pathname === "/"}
+          collapsed={collapsed}
+          tour="journal"
+        />
         <NavLink
           href="/library"
           label="Library"
           icon={<BookIcon />}
           active={pathname.startsWith("/library")}
           collapsed={collapsed}
+          tour="library"
         />
         <NavLink
           href="/stoics"
@@ -184,42 +210,45 @@ export default function Sidebar() {
           icon={<PorchIcon />}
           active={pathname.startsWith("/stoics")}
           collapsed={collapsed}
+          tour="stoics"
         />
-        {user && (
-          <>
-            <NavLink
-              href="/"
-              label="Journal"
-              icon={<PenIcon />}
-              active={pathname === "/"}
-              collapsed={collapsed}
-            />
-            <NavLink
-              href="/practice"
-              label="Practice"
-              icon={<CalendarIcon />}
-              active={pathname === "/practice"}
-              collapsed={collapsed}
-            />
-            <NavLink
-              href="/chat"
-              label="Mentor"
-              icon={<ChatIcon />}
-              active={pathname === "/chat"}
-              collapsed={collapsed}
-            />
-            <NavLink
-              href="/account"
-              label="Account"
-              icon={<UserIcon />}
-              active={pathname === "/account"}
-              collapsed={collapsed}
-            />
-          </>
-        )}
+        <NavLink
+          href="/practice"
+          label="Practice"
+          icon={<CalendarIcon />}
+          active={pathname === "/practice"}
+          collapsed={collapsed}
+          tour="practice"
+        />
+        <NavLink
+          href="/chat"
+          label="Mentor"
+          icon={<ChatIcon />}
+          active={pathname === "/chat"}
+          collapsed={collapsed}
+          tour="mentor"
+        />
+        <NavLink
+          href="/account"
+          label="Account"
+          icon={<UserIcon />}
+          active={pathname === "/account"}
+          collapsed={collapsed}
+          tour="account"
+        />
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-black/10 px-2 py-3 dark:border-white/15">
+        <button
+          title={collapsed ? "Take the tour" : undefined}
+          className={`flex items-center gap-3 rounded px-2.5 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
+            collapsed ? "justify-center" : ""
+          }`}
+          onClick={() => window.dispatchEvent(new Event(TOUR_OPEN_EVENT))}
+        >
+          <HelpIcon />
+          {!collapsed && <span>Take the tour</span>}
+        </button>
         {loading ? null : user ? (
           <>
             {!collapsed && (

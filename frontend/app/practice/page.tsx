@@ -6,7 +6,7 @@
 // day's detail on the right (the shared daily passage plus your own
 // journaling, margin notes, and reading).
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import BoldMarkdown from "@/components/BoldMarkdown";
 import PracticeSessionFlow from "@/components/PracticeSessionFlow";
 import {
@@ -280,7 +280,6 @@ function DayPanel({ detail }: { detail: DayDetail }) {
 
 export default function PracticePage() {
   const { user, loading } = useUser();
-  const router = useRouter();
 
   const today = new Date();
   const [view, setView] = useState({
@@ -298,15 +297,27 @@ export default function PracticePage() {
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
-    if (!loading && !user) router.push("/login");
-  }, [user, loading, router]);
-
-  useEffect(() => {
     fetchGuides().then(setGuides);
   }, []);
 
+  // Signed out, the calendar is still worth seeing: an empty month, ready
+  // to be filled — built locally, since the practice API needs an account.
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      const count = new Date(view.year, view.month, 0).getDate();
+      setDays(
+        Array.from({ length: count }, (_, i) => ({
+          date: `${view.year}-${pad(view.month)}-${pad(i + 1)}`,
+          daily_reference: null,
+          journal_count: 0,
+          note_count: 0,
+          read_count: 0,
+          session_count: 0,
+          practice_seconds: 0,
+        })),
+      );
+      return;
+    }
     fetchCalendar(view.year, view.month)
       .then(setDays)
       .catch(() => {});
@@ -329,7 +340,7 @@ export default function PracticePage() {
     });
   }, []);
 
-  if (loading || !user) return null;
+  if (loading) return null;
 
   // A running session takes over the page — one thing at a time.
   if (session) {
@@ -353,31 +364,73 @@ export default function PracticePage() {
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-semibold tracking-tight">Practice</h1>
 
-        <IntentionBar />
+        {user ? (
+          <IntentionBar />
+        ) : (
+          <div className="flex flex-col items-start gap-3 rounded-xl border border-black/10 p-4 text-sm dark:border-white/15">
+            <p className="opacity-75">
+              Morning and evening sits, guided by the Stoics, recorded on a
+              calendar alongside your reading and journaling. Create an
+              account to keep your practice.
+            </p>
+            <span className="flex items-center gap-3">
+              <Link
+                href="/register"
+                className="rounded-lg bg-foreground px-4 py-2 font-medium text-background hover:opacity-85"
+              >
+                Start practicing
+              </Link>
+              <Link href="/login" className="text-xs underline opacity-70 hover:opacity-100">
+                Sign in
+              </Link>
+            </span>
+          </div>
+        )}
 
         {/* Begin a session: the guides, or an unstructured sit. Playing your
             own music alongside (Spotify or anything else) works fine — the
             session doesn't touch it. */}
         <section className="rounded-xl border border-black/10 p-4 dark:border-white/15">
           <p className="mb-3 text-sm font-medium">Begin a session</p>
-          <div className="flex flex-wrap gap-2">
-            {guides.map((g) => (
+          {user ? (
+            <div className="flex flex-wrap gap-2">
+              {guides.map((g) => (
+                <button
+                  key={g.key}
+                  title={g.tagline}
+                  className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-medium text-background hover:opacity-85"
+                  onClick={() => setSession({ guide: g })}
+                >
+                  {g.title}
+                </button>
+              ))}
               <button
-                key={g.key}
-                title={g.tagline}
-                className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-medium text-background hover:opacity-85"
-                onClick={() => setSession({ guide: g })}
+                className={subtleButtonCls}
+                onClick={() => setSession({ guide: null })}
               >
-                {g.title}
+                Just practice
               </button>
-            ))}
-            <button
-              className={subtleButtonCls}
-              onClick={() => setSession({ guide: null })}
-            >
-              Just practice
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-sm">
+              {guides.map((g) => (
+                <p key={g.key}>
+                  <span className="font-medium">{g.title}</span>{" "}
+                  <span className="opacity-60">— {g.tagline}</span>
+                </p>
+              ))}
+              <p className="opacity-60">
+                <span className="font-medium opacity-100">Just practice</span>{" "}
+                — an unguided sit, timed and recorded.
+              </p>
+              <p className="mt-1 text-xs opacity-60">
+                <Link href="/login" className="underline hover:opacity-80">
+                  Sign in
+                </Link>{" "}
+                to begin a session — each one lands on your calendar.
+              </p>
+            </div>
+          )}
         </section>
 
         <section>
@@ -461,8 +514,10 @@ export default function PracticePage() {
             })}
           </div>
           <p className="mt-2 text-xs opacity-50">
-            S session · R read · J journaled · N margin notes — hover a day
-            for the daily passage.
+            S session · R read · J journaled · N margin notes
+            {user
+              ? " — hover a day for the daily passage."
+              : " — how your practice will appear here."}
           </p>
         </section>
       </div>
@@ -471,9 +526,15 @@ export default function PracticePage() {
       <div className="lg:border-l lg:border-black/10 lg:pl-8 dark:lg:border-white/15">
         {detail ? (
           <DayPanel detail={detail} />
-        ) : (
+        ) : user ? (
           <p className="pt-2 text-sm opacity-60">
             Select a day to see its passage and your practice.
+          </p>
+        ) : (
+          <p className="pt-2 text-sm opacity-60">
+            Each day here gathers the daily passage and your practice —
+            sessions, passages read, journal entries, and margin notes.
+            Signed in, selecting a day shows its record.
           </p>
         )}
       </div>
