@@ -10,11 +10,13 @@ import JournalPad, { EntryCard } from "@/components/JournalPad";
 import { PlayButton } from "@/components/PlayButton";
 import {
   breakdownAudioUrl,
+  fetchBreakdown,
   fetchDayDetail,
   passageAudioUrl,
   type Daily,
   type DayDetail,
 } from "@/lib/api";
+import { type ContinueMode, type QueueItem } from "@/lib/narration";
 import { useUser } from "@/lib/useUser";
 
 const navButtonCls =
@@ -41,18 +43,42 @@ function labelFor(iso: string): string {
   });
 }
 
+/** The day's narration queue: the passage, then — when the listener's
+    continue mode says so — its reflection. The prepare step generates the
+    reflection text if it doesn't exist yet, and skips it if unavailable. */
+function dayQueue(passageId: string) {
+  return (mode: ContinueMode): QueueItem[] => {
+    const items: QueueItem[] = [
+      { src: passageAudioUrl(passageId), passageId, kind: "passage" },
+    ];
+    if (mode === "reflections")
+      items.push({
+        src: breakdownAudioUrl(passageId),
+        passageId,
+        kind: "breakdown",
+        prepare: () =>
+          fetchBreakdown(passageId)
+            .then((b) => !!b.breakdown)
+            .catch(() => false),
+      });
+    return items;
+  };
+}
+
 function PassageArticle({
   heading,
   reference,
   text,
   attribution,
   audioSrc,
+  audioQueue,
 }: {
   heading: string;
   reference: string;
   text: string;
   attribution: React.ReactNode;
   audioSrc?: string;
+  audioQueue?: (mode: ContinueMode) => QueueItem[];
 }) {
   return (
     <article>
@@ -61,7 +87,13 @@ function PassageArticle({
       </p>
       <h1 className="mb-4 flex items-center gap-2 text-2xl font-semibold tracking-tight">
         {reference}
-        {audioSrc && <PlayButton src={audioSrc} title={`Listen to ${reference}`} />}
+        {audioSrc && (
+          <PlayButton
+            src={audioSrc}
+            title={`Listen to ${reference}`}
+            queueFrom={audioQueue}
+          />
+        )}
       </h1>
       <blockquote className="whitespace-pre-line text-lg leading-relaxed">
         {text}
@@ -150,6 +182,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 reference={daily.passage.reference}
                 text={daily.passage.text}
                 audioSrc={passageAudioUrl(daily.passage.id)}
+                audioQueue={dayQueue(daily.passage.id)}
                 attribution={
                   <>
                     {daily.passage.author}, <em>{daily.passage.work}</em>{" "}
@@ -200,6 +233,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 reference={pastPassage.reference}
                 text={pastPassage.text}
                 audioSrc={passageAudioUrl(pastPassage.id)}
+                audioQueue={dayQueue(pastPassage.id)}
                 attribution={
                   <>
                     {pastPassage.author}, <em>{pastPassage.work}</em> &middot;

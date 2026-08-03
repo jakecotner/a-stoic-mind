@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getVoicePref, setVoicePref } from "@/components/PlayButton";
+import { getVoicePref, setVoicePref } from "@/lib/narration";
 import {
   deleteAccount,
   fetchBillingSummary,

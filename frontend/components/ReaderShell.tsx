@@ -8,7 +8,13 @@
 // A client component, but still server-rendered on first load, so the
 // passage text stays in the HTML search engines index.
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import BoldMarkdown from "@/components/BoldMarkdown";
 import {
   AnnotationsProvider,
@@ -23,6 +29,13 @@ import {
   type Passage,
   type Work,
 } from "@/lib/api";
+import {
+  type ContinueMode,
+  type QueueItem,
+  getNarrationSnapshot,
+  getServerNarrationSnapshot,
+  subscribeNarration,
+} from "@/lib/narration";
 
 type NavLink = { href: string; label: string } | null;
 
@@ -34,9 +47,11 @@ function locator(reference: string): string {
 function BreakdownPanel({
   passage,
   onClose,
+  queueFrom,
 }: {
   passage: Passage;
   onClose: () => void;
+  queueFrom?: (mode: ContinueMode) => QueueItem[];
 }) {
   // Session-local cache: reopening a passage shouldn't refetch.
   const cache = useRef(new Map<string, string | null>());
@@ -87,6 +102,7 @@ function BreakdownPanel({
             <PlayButton
               src={breakdownAudioUrl(passage.id)}
               title="Listen to the breakdown"
+              queueFrom={queueFrom}
             />
           )}
         </h3>
@@ -156,6 +172,118 @@ export default function ReaderShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, close]);
 
+  // --- Continuous narration. A listen on any passage builds a queue from
+  // there to the end of the part; in "reflections" mode each passage is
+  // followed by its breakdown before moving on.
+
+  // One breakdown-readiness promise per passage, so the engine's prefetch
+  // and the actual play don't both trigger generation.
+  const breakdownReady = useRef(new Map<string, Promise<boolean>>());
+  const ensureBreakdown = useCallback((passageId: string) => {
+    let p = breakdownReady.current.get(passageId);
+    if (!p) {
+      p = fetchBreakdown(passageId)
+        .then((b) => !!b.breakdown)
+        .catch(() => {
+          // A failed fetch shouldn't stick — allow a retry on the next run.
+          breakdownReady.current.delete(passageId);
+          return false;
+        });
+      breakdownReady.current.set(passageId, p);
+    }
+    return p;
+  }, []);
+
+  const queueFrom = useCallback(
+    (start: number, mode: ContinueMode): QueueItem[] => {
+      const rest =
+        mode === "off" ? passages.slice(start, start + 1) : passages.slice(start);
+      const items: QueueItem[] = [];
+      for (const p of rest) {
+        items.push({
+          src: passageAudioUrl(p.id),
+          passageId: p.id,
+          kind: "passage",
+        });
+        if (mode === "reflections")
+          items.push({
+            src: breakdownAudioUrl(p.id),
+            passageId: p.id,
+            kind: "breakdown",
+            prepare: () => ensureBreakdown(p.id),
+          });
+      }
+      return items;
+    },
+    [passages, ensureBreakdown]
+  );
+
+  // A play from the companion panel starts at the breakdown itself, then
+  // follows the same plan as any other listen.
+  const breakdownQueueFrom = useCallback(
+    (p: Passage, mode: ContinueMode): QueueItem[] => {
+      const head: QueueItem = {
+        src: breakdownAudioUrl(p.id),
+        passageId: p.id,
+        kind: "breakdown",
+        prepare: () => ensureBreakdown(p.id),
+      };
+      const i = passages.findIndex((x) => x.id === p.id);
+      if (mode === "off" || i < 0) return [head];
+      return [head, ...queueFrom(i + 1, mode)];
+    },
+    [passages, queueFrom, ensureBreakdown]
+  );
+
+  // Follow along with the narration: highlight the passage being read,
+  // scroll it into view when playback rolls to a new one, and show the
+  // companion panel while its breakdown is being read.
+  const snap = useSyncExternalStore(
+    subscribeNarration,
+    getNarrationSnapshot,
+    getServerNarrationSnapshot
+  );
+  const narrating =
+    (snap.state === "playing" || snap.state === "loading") &&
+    snap.item &&
+    passages.some((p) => p.id === snap.item!.passageId)
+      ? snap.item
+      : null;
+  const narratingId = narrating?.passageId ?? null;
+  const narratingKind = narrating?.kind ?? null;
+
+  const articleRefs = useRef(new Map<string, HTMLElement>());
+  const prevNarrating = useRef<string | null>(null);
+  useEffect(() => {
+    // Scroll only when playback moves between passages — not on the
+    // starting click (the listener is already there).
+    if (narratingId && prevNarrating.current && narratingId !== prevNarrating.current)
+      articleRefs.current
+        .get(narratingId)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    prevNarrating.current = narratingId;
+  }, [narratingId]);
+
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!narratingId) {
+      autoOpened.current = false;
+      return;
+    }
+    if (narratingKind === "breakdown") {
+      const p = passages.find((x) => x.id === narratingId);
+      if (p) {
+        setSelected(p);
+        autoOpened.current = true;
+      }
+    } else if (autoOpened.current) {
+      // Back to the text: close a panel the narration opened (but never
+      // one the reader opened themselves).
+      setSelected(null);
+      autoOpened.current = false;
+    }
+  }, [narratingId, narratingKind, passages]);
+
   return (
     <AnnotationsProvider work={work.work}>
       <div
@@ -178,8 +306,14 @@ export default function ReaderShell({
           </header>
 
           <div className="flex flex-col gap-8">
-            {passages.map((p) => (
-              <article key={p.id}>
+            {passages.map((p, i) => (
+              <article
+                key={p.id}
+                ref={(el) => {
+                  if (el) articleRefs.current.set(p.id, el);
+                  else articleRefs.current.delete(p.id);
+                }}
+              >
                 {/* The text is the click target; notes below keep their own
                     controls. Clicking the selected passage again closes. */}
                 <div
@@ -187,7 +321,7 @@ export default function ReaderShell({
                   tabIndex={0}
                   aria-label={`Open companion panel for ${p.reference}`}
                   className={`-mx-2 cursor-pointer rounded-lg px-2 py-1 transition-colors ${
-                    selected?.id === p.id
+                    selected?.id === p.id || narratingId === p.id
                       ? "bg-black/[.05] dark:bg-white/[.08]"
                       : "hover:bg-black/[.03] dark:hover:bg-white/[.04]"
                   }`}
@@ -204,6 +338,7 @@ export default function ReaderShell({
                     <PlayButton
                       src={passageAudioUrl(p.id)}
                       title={`Listen to ${p.reference}`}
+                      queueFrom={(mode) => queueFrom(i, mode)}
                     />
                   </p>
                   <p className="whitespace-pre-line leading-relaxed">
@@ -245,7 +380,11 @@ export default function ReaderShell({
             className="fixed inset-x-0 bottom-0 z-10 max-h-[70vh] overflow-y-auto border-t border-black/10 bg-background p-4 shadow-lg lg:sticky lg:top-10 lg:max-h-none lg:overflow-visible lg:border-l lg:border-t-0 lg:bg-transparent lg:p-0 lg:pl-8 lg:shadow-none dark:border-white/15"
             aria-label="Passage companion panel"
           >
-            <BreakdownPanel passage={selected} onClose={close} />
+            <BreakdownPanel
+              passage={selected}
+              onClose={close}
+              queueFrom={(mode) => breakdownQueueFrom(selected, mode)}
+            />
           </aside>
         )}
       </div>

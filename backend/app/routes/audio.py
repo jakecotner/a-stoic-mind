@@ -15,7 +15,9 @@ from app.services import audio as audio_service
 
 router = APIRouter(prefix="/api", tags=["audio"])
 
-_miss_cap = MissCap(limit=30, window_seconds=3600.0, what="narration")
+# Sized for a real listen-through: continuous narration with reflections
+# costs two fresh syntheses per passage on a work's first listen.
+_miss_cap = MissCap(limit=120, window_seconds=3600.0, what="narration")
 
 # The corpus and its cached breakdowns are immutable, so the audio is too.
 _CACHE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}

@@ -1,54 +1,37 @@
 "use client";
 
-// Passage narration, ported from the first-generation stoa project. A
-// self-contained icon-only listen/stop toggle: owns its audio element and
-// silences any other PlayButton when it starts.
-import { useEffect, useRef, useState } from "react";
+// Passage narration, ported from the first-generation stoa project. An
+// icon-only listen/stop toggle over the shared narration engine
+// (lib/narration.ts): one narration plays at a time app-wide, and a play
+// can roll on past its own passage when the parent supplies a queue.
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type ContinueMode,
+  type QueueItem,
+  getContinuePref,
+  getNarrationSnapshot,
+  getPacePref,
+  getServerNarrationSnapshot,
+  PACES,
+  setContinuePref,
+  setPacePref,
+  startNarration,
+  stopIfOwner,
+  stopNarration,
+  subscribeNarration,
+} from "@/lib/narration";
 
-// One narration playing at a time across the whole app.
-let active: HTMLAudioElement | null = null;
-
-// Narration voice preference, per device ("" = server default). Read at play
-// time, so a change in Account applies to the very next listen everywhere.
-const VOICE_KEY = "astoicmind:tts-voice";
-
-export const getVoicePref = (): string =>
-  typeof window === "undefined" ? "" : (localStorage.getItem(VOICE_KEY) ?? "");
-
-export const setVoicePref = (id: string): void => {
-  if (id) localStorage.setItem(VOICE_KEY, id);
-  else localStorage.removeItem(VOICE_KEY);
+const CONTINUE_CHIP: Record<ContinueMode, string> = {
+  off: "auto: off",
+  passages: "auto: on",
+  reflections: "auto: on+",
 };
 
-// Reading pace, per device (1 = as recorded). A playback-rate setting, not a
-// re-synthesis: the same cached audio plays faster or slower, pitch
-// preserved by the browser. Chosen at the point of listening — a pace chip
-// appears beside the button while narration is active — and the latest
-// choice persists for all future narrations.
-const PACE_KEY = "astoicmind:tts-pace";
-const PACES = [0.75, 1, 1.25, 1.5, 2];
-
-const getPacePref = (): number => {
-  if (typeof window === "undefined") return 1;
-  const v = Number(localStorage.getItem(PACE_KEY));
-  return PACES.includes(v) ? v : 1;
+const CONTINUE_LABELS: Record<ContinueMode, string> = {
+  off: "Stop after this passage",
+  passages: "Continue to the next passage",
+  reflections: "Continue, reading reflections too",
 };
-
-const setPacePref = (pace: number): void => {
-  if (pace === 1) localStorage.removeItem(PACE_KEY);
-  else localStorage.setItem(PACE_KEY, String(pace));
-  // Adjust any narration already playing, so the change is audible live.
-  if (active) active.playbackRate = pace;
-};
-
-/** The narration URL with the chosen voice applied. */
-function withVoice(src: string): string {
-  const v = getVoicePref();
-  if (!v) return src;
-  return src + (src.includes("?") ? "&" : "?") + "voice=" + encodeURIComponent(v);
-}
-
-type PlayState = "idle" | "loading" | "playing" | "failed";
 
 function SpeakerIcon({ muted }: { muted?: boolean }) {
   return (
@@ -94,41 +77,71 @@ function StopIcon() {
   );
 }
 
+const chipCls =
+  "rounded px-1 text-[11px] normal-case tabular-nums opacity-60 hover:opacity-100";
+const menuCls =
+  "absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-[11px] normal-case shadow-lg dark:border-white/15";
+const menuItemCls = (current: boolean) =>
+  `px-3 py-1.5 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
+    current ? "font-semibold" : "opacity-70"
+  }`;
+
 /** Icon-only listen/stop toggle for a narration URL. The first listen to a
-    passage synthesizes the audio server-side, so loading can take a while. */
+    passage synthesizes the audio server-side, so loading can take a while.
+
+    With `queueFrom`, a listen becomes the start of a continuous run: the
+    parent builds the queue from here for the chosen continue mode, and a
+    chip beside the pace chip lets the listener change that mode live. */
 export function PlayButton({
   src,
   title = "Listen",
+  queueFrom,
 }: {
   src: string;
   title?: string;
+  queueFrom?: (mode: ContinueMode) => QueueItem[];
 }) {
-  const [state, setState] = useState<PlayState>("idle");
+  const snap = useSyncExternalStore(
+    subscribeNarration,
+    getNarrationSnapshot,
+    getServerNarrationSnapshot
+  );
+  // This button renders whatever item the engine is on, matched by URL —
+  // so when a run rolls to the next passage, the old button falls idle and
+  // the new one lights up, whichever button started the run.
+  const mine = snap.item?.src === src;
+  const state = mine ? snap.state : "idle";
+  const activeNow = state === "playing" || state === "loading";
+
   const [pace, setPace] = useState(1);
-  const [paceMenu, setPaceMenu] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [mode, setMode] = useState<ContinueMode>("off");
+  const [menu, setMenu] = useState<"pace" | "continue" | null>(null);
+  const ownerRef = useRef<number | null>(null);
 
-  const halt = () => {
-    const a = audioRef.current;
-    audioRef.current = null;
-    if (a) {
-      a.pause();
-      a.removeAttribute("src"); // abort any in-flight fetch
-      if (active === a) active = null;
-    }
-  };
-
-  // New passage in the same slot: stop the old narration, reset the button.
+  // Chips reflect the device prefs whenever this button becomes the live
+  // one — playback may have arrived here from another button's click.
   useEffect(() => {
-    setState("idle");
-    setPaceMenu(false);
-    return halt;
+    if (activeNow) {
+      setPace(getPacePref());
+      setMode(getContinuePref());
+    } else {
+      setMenu(null);
+    }
+  }, [activeNow]);
+
+  // New passage in the same slot, or unmount: a run this button started
+  // shouldn't keep narrating a page that's gone.
+  useEffect(() => {
+    setMenu(null);
+    return () => {
+      if (ownerRef.current !== null) stopIfOwner(ownerRef.current);
+    };
   }, [src]);
 
-  // The pace menu closes like any menu: click elsewhere or Escape.
+  // Menus close like any menu: click elsewhere or Escape.
   useEffect(() => {
-    if (!paceMenu) return;
-    const dismiss = () => setPaceMenu(false);
+    if (!menu) return;
+    const dismiss = () => setMenu(null);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismiss();
     };
@@ -138,47 +151,26 @@ export function PlayButton({
       document.removeEventListener("click", dismiss);
       document.removeEventListener("keydown", onKey);
     };
-  }, [paceMenu]);
+  }, [menu]);
 
   function toggle() {
-    if (state === "playing" || state === "loading") {
-      halt();
-      setState("idle");
-      setPaceMenu(false);
+    if (activeNow) {
+      stopNarration();
+      setMenu(null);
       return;
     }
-    const a = new Audio(withVoice(src));
-    a.playbackRate = getPacePref();
-    setPace(getPacePref());
-    active?.pause();
-    active = a;
-    audioRef.current = a;
-    setState("loading");
-    a.onplaying = () => {
-      if (audioRef.current === a) setState("playing");
-    };
-    a.onended = () => {
-      if (audioRef.current === a) setState("idle");
-    };
-    // Fires when another PlayButton starts and pauses this one via `active`.
-    a.onpause = () => {
-      if (audioRef.current === a && !a.ended) setState("idle");
-    };
-    a.onerror = () => {
-      if (audioRef.current === a) setState("failed");
-    };
-    a.play().catch(() => {
-      if (audioRef.current === a) setState("failed");
-    });
+    const build =
+      queueFrom ??
+      (() => [{ src, passageId: "", kind: "passage" as const }]);
+    ownerRef.current = startNarration(build);
   }
 
   const label =
     state === "failed"
       ? "Audio unavailable"
-      : state === "playing" || state === "loading"
+      : activeNow
         ? "Stop narration"
         : title;
-  const activeNow = state === "playing" || state === "loading";
   // All spans, no divs: PlayButton lives inside <p>/<h1> heading rows, where
   // only phrasing content is valid.
   return (
@@ -209,35 +201,67 @@ export function PlayButton({
       {activeNow && (
         <button
           type="button"
-          className="rounded px-1 text-[11px] normal-case tabular-nums opacity-60 hover:opacity-100"
+          className={chipCls}
           onClick={(e) => {
             e.stopPropagation();
-            setPaceMenu((open) => !open);
+            setMenu((open) => (open === "pace" ? null : "pace"));
           }}
           title="Reading pace"
           aria-label={`Reading pace, currently ${pace}x`}
-          aria-expanded={paceMenu}
+          aria-expanded={menu === "pace"}
         >
           {pace}x
         </button>
       )}
-      {activeNow && paceMenu && (
-        <span className="absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-[11px] normal-case shadow-lg dark:border-white/15">
+      {activeNow && queueFrom && (
+        <button
+          type="button"
+          className={chipCls}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenu((open) => (open === "continue" ? null : "continue"));
+          }}
+          title="Continue narration"
+          aria-label={`Continue narration: ${CONTINUE_LABELS[mode]}`}
+          aria-expanded={menu === "continue"}
+        >
+          {CONTINUE_CHIP[mode]}
+        </button>
+      )}
+      {activeNow && menu === "pace" && (
+        <span className={menuCls}>
           {PACES.map((v) => (
             <button
               key={v}
               type="button"
-              className={`px-3 py-1.5 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
-                v === pace ? "font-semibold" : "opacity-70"
-              }`}
+              className={menuItemCls(v === pace)}
               onClick={(e) => {
                 e.stopPropagation();
                 setPacePref(v);
                 setPace(v);
-                setPaceMenu(false);
+                setMenu(null);
               }}
             >
               {v}x
+            </button>
+          ))}
+        </span>
+      )}
+      {activeNow && menu === "continue" && (
+        <span className={menuCls}>
+          {(Object.keys(CONTINUE_LABELS) as ContinueMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={menuItemCls(m === mode)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setContinuePref(m);
+                setMode(m);
+                setMenu(null);
+              }}
+            >
+              {CONTINUE_LABELS[m]}
             </button>
           ))}
         </span>
