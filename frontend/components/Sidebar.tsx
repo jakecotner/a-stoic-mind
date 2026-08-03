@@ -17,6 +17,16 @@ function BookIcon() {
   );
 }
 
+function PorchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <path d="M3 22h18" />
+      <path d="M6 18v-7M10 18v-7M14 18v-7M18 18v-7" />
+      <path d="M12 2 3 7h18L12 2z" />
+    </svg>
+  );
+}
+
 function PenIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
@@ -158,6 +168,13 @@ export default function Sidebar() {
           label="Library"
           icon={<BookIcon />}
           active={pathname.startsWith("/library")}
+          collapsed={collapsed}
+        />
+        <NavLink
+          href="/stoics"
+          label="The Stoics"
+          icon={<PorchIcon />}
+          active={pathname.startsWith("/stoics")}
           collapsed={collapsed}
         />
         {user && (
