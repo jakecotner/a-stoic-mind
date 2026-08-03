@@ -48,6 +48,8 @@ CURATED: list[str] = [
     # Epictetus, Discourses (first chunk of each chapter)
     "Discourses 1.1", "Discourses 1.24", "Discourses 2.5",
     "Discourses 3.24", "Discourses 4.1",
+    # Musonius Rufus, Lectures (first chunk of each lecture)
+    "Lectures 3", "Lectures 6", "Lectures 7", "Lectures 9", "Lectures 17",
     # Seneca, dialogues and essays
     "On the Shortness of Life 1", "On the Shortness of Life 2",
     "On the Shortness of Life 3", "Of Providence 2", "Of Peace of Mind 2",

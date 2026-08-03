@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Library — A Stoic Mind",
   description:
-    "The Stoic classics, free to read: Marcus Aurelius' Meditations, Epictetus' Discourses and Enchiridion, and Seneca's letters and essays — public-domain translations, with the original Greek and Latin where available.",
+    "The Stoic classics, free to read: Marcus Aurelius' Meditations, Epictetus' Discourses and Enchiridion, Seneca's letters and essays, and the Lectures of Musonius Rufus — with the original Greek and Latin where available.",
 };
 
 export default async function LibraryPage() {
@@ -23,7 +23,7 @@ export default async function LibraryPage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">Library</h1>
       <p className="mb-8 text-sm opacity-70">
-        The Stoic classics in public-domain translations. Open a work to read
+        The Stoic classics, free to read. Open a work to read
         it — signed in, you can take margin notes and keep your reading in
         your practice calendar.
       </p>

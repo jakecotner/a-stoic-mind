@@ -5,6 +5,7 @@ Works are read in their natural units, derived from the reference locator:
 
 - Meditations              -> book        ("Meditations 4.3"  -> part "4")
 - Moral Letters to Lucilius-> letter      ("Letters 13.1-2"   -> part "13")
+- Lectures (Musonius)      -> lecture     ("Lectures 16.2"    -> part "16")
 - Discourses               -> chapter     ("Discourses 1.15.3"-> part "1.15")
 - multi-book essays        -> book        ("Of Anger 2.6"     -> part "2")
 - single-book works        -> read whole  ("Enchiridion 5"    -> part "")
@@ -25,6 +26,7 @@ from app.models import Note, Passage, User
 from app.schemas.reading import TocPartOut
 
 _LETTERS = "Moral Letters to Lucilius"
+_LECTURES = "Lectures"  # Musonius Rufus; 13a/13b-style lecture numbers
 _MULTI_BOOK = {"Of Anger", "Of Clemency", "On Benefits"}
 
 
@@ -39,7 +41,10 @@ def part_key(passage: Passage) -> str:
     bits = _locator(passage).split(".")
     if passage.work == "Discourses":
         return ".".join(bits[:2])
-    if passage.work in ("Meditations", _LETTERS) or passage.work in _MULTI_BOOK:
+    if (
+        passage.work in ("Meditations", _LETTERS, _LECTURES)
+        or passage.work in _MULTI_BOOK
+    ):
         return bits[0]
     return ""
 
@@ -52,6 +57,8 @@ def _part_label(work: str, key: str) -> str:
         return f"Book {book}, Chapter {chapter}"
     if work == _LETTERS:
         return f"Letter {key}"
+    if work == _LECTURES:
+        return f"Lecture {key}"
     return f"Book {key}"
 
 

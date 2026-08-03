@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!work) return {};
   return {
     title: `${work.work} — ${work.author} | A Stoic Mind`,
-    description: `Read ${work.work} by ${work.author}, translated by ${work.translator} — free, in the public domain.`,
+    description: `Read ${work.work} by ${work.author}, translated by ${work.translator} — free to read online.`,
   };
 }
 
