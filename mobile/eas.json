@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://REPLACE-with-backend-origin",
+        "EXPO_PUBLIC_WEB_URL": "https://REPLACE-with-website-origin"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://REPLACE-with-backend-origin",
+        "EXPO_PUBLIC_WEB_URL": "https://REPLACE-with-website-origin"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

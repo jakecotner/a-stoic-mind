@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate:types": "openapi-typescript ../backend/openapi.json -o lib/api-types.d.ts"
+    "generate:types": "openapi-typescript ../backend/openapi.json -o lib/api-types.d.ts && node -e \"require('fs').copyFileSync('lib/api-types.d.ts','../mobile/src/lib/api-types.d.ts')\""
   },
   "dependencies": {
     "next": "16.2.11",

@@ -42,8 +42,12 @@
   convert it to async.
 - **After changing any backend response/request schema**, regenerate the
   frontend types: `python scripts/export_openapi.py` (from `backend/`), then
-  `npm run generate:types` (from `frontend/`). Commit the regenerated
-  `frontend/lib/api-types.d.ts`.
+  `npm run generate:types` (from `frontend/`) — this also copies the types
+  to `mobile/src/lib/`. Commit both regenerated `api-types.d.ts` files.
+- **`mobile/`** is the companion Expo app (see its README + AGENTS.md): same
+  backend via bearer auth, tabs for Today / Journal (with dictation) /
+  Library / Practice / Account. Billing links out to the website — no
+  in-app purchases.
 - The user coordinates git commits — do not commit or push unless asked.
 
 ## Working with the user (English-first)
