@@ -1,13 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { logout } from "@/lib/api";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import {
+  deleteConversation,
+  fetchConversations,
+  logout,
+  type ConversationSummary,
+} from "@/lib/api";
 import { TOUR_OPEN_EVENT } from "@/components/Tour";
 import { useUser } from "@/lib/useUser";
 
 const COLLAPSED_KEY = "sidebar-collapsed";
+const HISTORY_OPEN_KEY = "mentor-history-open";
+
+/** Fired (on window) whenever a conversation is created or removed, so the
+    sidebar's history list refetches. The chat page dispatches it when a
+    first message creates a conversation. */
+export const CONVERSATIONS_CHANGED_EVENT = "conversations-changed";
 
 function BookIcon() {
   return (
@@ -99,6 +110,14 @@ function HelpIcon() {
   );
 }
 
+function CaretIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`}>
@@ -140,11 +159,69 @@ function NavLink({
   );
 }
 
+/** The Mentor item's dropdown: recent conversations, newest first. Reads the
+    URL's ?c= to highlight the open thread, so it lives in its own component
+    under a Suspense boundary (useSearchParams requires one on prerendered
+    routes). */
+function MentorHistory() {
+  const router = useRouter();
+  const activeId = useSearchParams().get("c");
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
+  useEffect(() => {
+    const load = () =>
+      void fetchConversations()
+        .then(setConversations)
+        .catch(() => {}); // signed out or offline — just show nothing
+    load();
+    window.addEventListener(CONVERSATIONS_CHANGED_EVENT, load);
+    return () => window.removeEventListener(CONVERSATIONS_CHANGED_EVENT, load);
+  }, []);
+
+  return (
+    <div className="ml-[1.15rem] flex max-h-64 flex-col gap-0.5 overflow-y-auto border-l border-black/10 py-1 pl-2 pr-1 dark:border-white/15">
+      <Link
+        href="/chat"
+        className="rounded px-2 py-1 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+      >
+        + New chat
+      </Link>
+      {conversations.map((c) => (
+        <div key={c.id} className="group flex items-center gap-1">
+          <Link
+            href={`/chat?c=${c.id}`}
+            title={c.title ?? "Untitled"}
+            className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-sm ${
+              c.id === activeId
+                ? "bg-black/10 dark:bg-white/15"
+                : "opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+            }`}
+          >
+            {c.title ?? "Untitled"}
+          </Link>
+          <button
+            aria-label="Delete conversation"
+            className="hidden px-1 text-xs opacity-50 hover:opacity-100 group-hover:block"
+            onClick={async () => {
+              await deleteConversation(c.id);
+              setConversations((prev) => prev.filter((x) => x.id !== c.id));
+              if (c.id === activeId) router.push("/chat");
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const { user, loading, refresh } = useUser();
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(COLLAPSED_KEY);
@@ -153,12 +230,20 @@ export default function Sidebar() {
     } else if (window.innerWidth < 768) {
       setCollapsed(true);
     }
+    setHistoryOpen(localStorage.getItem(HISTORY_OPEN_KEY) === "1");
   }, []);
 
   const toggle = () => {
     setCollapsed((c) => {
       localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1");
       return !c;
+    });
+  };
+
+  const toggleHistory = () => {
+    setHistoryOpen((o) => {
+      localStorage.setItem(HISTORY_OPEN_KEY, o ? "0" : "1");
+      return !o;
     });
   };
 
@@ -220,14 +305,36 @@ export default function Sidebar() {
           collapsed={collapsed}
           tour="practice"
         />
-        <NavLink
-          href="/chat"
-          label="Mentor"
-          icon={<ChatIcon />}
-          active={pathname === "/chat"}
-          collapsed={collapsed}
-          tour="mentor"
-        />
+        <div className="flex flex-col">
+          <div className="flex items-center">
+            <div className="min-w-0 flex-1">
+              <NavLink
+                href="/chat"
+                label="Mentor"
+                icon={<ChatIcon />}
+                active={pathname === "/chat"}
+                collapsed={collapsed}
+                tour="mentor"
+              />
+            </div>
+            {user && !collapsed && (
+              <button
+                onClick={toggleHistory}
+                aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
+                aria-expanded={historyOpen}
+                title={historyOpen ? "Hide chat history" : "Show chat history"}
+                className="rounded p-1 opacity-50 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+              >
+                <CaretIcon open={historyOpen} />
+              </button>
+            )}
+          </div>
+          {user && !collapsed && historyOpen && (
+            <Suspense fallback={null}>
+              <MentorHistory />
+            </Suspense>
+          )}
+        </div>
         <NavLink
           href="/account"
           label="Account"

@@ -1,8 +1,10 @@
 "use client";
 
 // The mentor — a conversation with a seasoned student of the Stoa. Streaming
-// SSE chat over the reinstated chat module: conversation list on the left,
-// thread on the right. The journal-sharing switch lives at the point of use
+// SSE chat over the reinstated chat module. History lives in the nav
+// sidebar's Mentor dropdown; the open thread is addressed by the URL
+// (?c=<conversation id>), so history entries are plain links and
+// back/forward work. The journal-sharing switch lives at the point of use
 // (next to the composer): per conversation, off by default.
 //
 // LIVE mode is the voice loop: replies are narrated aloud, the mic stays
@@ -11,17 +13,22 @@
 // message. Typing keeps working throughout; live is a layer, not a mode
 // switch.
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  deleteConversation,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
   fetchConversation,
-  fetchConversations,
   messageAudioUrl,
   streamChat,
   updateConversation,
   type CapInfo,
-  type ConversationSummary,
 } from "@/lib/api";
+import { CONVERSATIONS_CHANGED_EVENT } from "@/components/Sidebar";
 import {
   getNarrationSnapshot,
   getServerNarrationSnapshot,
@@ -52,10 +59,15 @@ function speak(messageId: string) {
   ]);
 }
 
-export default function ChatPage() {
+function Chat() {
   const { user, loading } = useUser();
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const router = useRouter();
+  const urlId = useSearchParams().get("c");
   const [activeId, setActiveId] = useState<string | null>(null);
+  // The conversation the page state currently reflects — set synchronously
+  // (unlike activeId) so the URL-sync effect below can tell a navigation
+  // apart from its own router.replace echo.
+  const loadedId = useRef<string | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -83,10 +95,6 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
-    if (user) void fetchConversations().then(setConversations);
-  }, [user]);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -100,27 +108,33 @@ export default function ChatPage() {
     [],
   );
 
-  const openConversation = async (id: string) => {
-    const detail = await fetchConversation(id);
-    if (!detail) return;
-    setActiveId(id);
-    setNotice(null);
-    setShareJournal(detail.share_journal);
-    setMessages(
-      detail.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        id: m.id,
-      })),
-    );
-  };
-
-  const newChat = () => {
-    setActiveId(null);
-    setMessages([]);
-    setNotice(null);
-    setShareJournal(false);
-  };
+  // The URL owns which conversation is open: sidebar history entries and
+  // "+ New chat" are links here, so navigation loads the thread and /chat
+  // with no ?c= resets to a fresh chat.
+  useEffect(() => {
+    if (urlId === loadedId.current) return;
+    loadedId.current = urlId;
+    if (!urlId) {
+      setActiveId(null);
+      setMessages([]);
+      setNotice(null);
+      setShareJournal(false);
+      return;
+    }
+    void fetchConversation(urlId).then((detail) => {
+      if (!detail) return; // gone or not ours — leave the page as-is
+      setActiveId(urlId);
+      setNotice(null);
+      setShareJournal(detail.share_journal);
+      setMessages(
+        detail.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          id: m.id,
+        })),
+      );
+    });
+  }, [urlId]);
 
   const toggleShareJournal = async () => {
     const next = !shareJournal;
@@ -195,7 +209,14 @@ export default function ChatPage() {
       {
         onMeta: ({ conversation_id }) => {
           setActiveId(conversation_id);
-          if (user) void fetchConversations().then(setConversations);
+          if (user) {
+            // Put the new conversation in the URL (without reloading the
+            // thread we're mid-stream on) and let the sidebar refetch.
+            loadedId.current = conversation_id;
+            router.replace(`/chat?c=${conversation_id}`, { scroll: false });
+            window.dispatchEvent(new Event(CONVERSATIONS_CHANGED_EVENT));
+          }
+          // Anonymous taste: the conversation continues in memory only.
         },
         onDelta: append,
         onError: (msg) => setNotice(msg),
@@ -258,43 +279,7 @@ export default function ChatPage() {
             : "listening";
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 gap-6 px-4 py-6">
-      {user && (
-        <aside className="hidden w-56 shrink-0 flex-col gap-1 sm:flex">
-          <button
-            onClick={newChat}
-            className="mb-2 rounded-lg border border-black/15 px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-          >
-            + New chat
-          </button>
-          {conversations.map((c) => (
-            <div key={c.id} className="group flex items-center gap-1">
-              <button
-                onClick={() => void openConversation(c.id)}
-                className={`flex-1 truncate rounded px-2 py-1 text-left text-sm ${
-                  c.id === activeId
-                    ? "bg-black/10 dark:bg-white/15"
-                    : "hover:bg-black/5 dark:hover:bg-white/10"
-                }`}
-              >
-                {c.title ?? "Untitled"}
-              </button>
-              <button
-                aria-label="Delete conversation"
-                className="hidden px-1 text-xs opacity-50 hover:opacity-100 group-hover:block"
-                onClick={async () => {
-                  await deleteConversation(c.id);
-                  setConversations((prev) => prev.filter((x) => x.id !== c.id));
-                  if (c.id === activeId) newChat();
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </aside>
-      )}
-
+    <div className="mx-auto flex w-full max-w-3xl flex-1 gap-6 px-4 py-6">
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 space-y-4 overflow-y-auto pb-4">
           {messages.length === 0 && (
@@ -402,5 +387,15 @@ export default function ChatPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+// useSearchParams needs a Suspense boundary on prerendered routes; the
+// fallback is never visible in practice (the page is client-rendered).
+export default function ChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <Chat />
+    </Suspense>
   );
 }
