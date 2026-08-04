@@ -7,6 +7,12 @@
 // transcribed server-side, and the text is handed to the page's saver
 // (a margin note on the passage being narrated). Narration then resumes.
 //
+// A second mode shares the same machinery: LIVE dictation (the mentor's
+// voice mode). A page registers an utterance handler and the mic stays
+// open regardless of narration state; a finished take STOPS any narration
+// (talking over the mentor means "listen to me now") and the transcript
+// goes to the handler instead of a note saver.
+//
 // Capture is raw PCM (a ScriptProcessor tap), not MediaRecorder: a rolling
 // pre-buffer means the take includes the ~1.2s BEFORE speech was detected,
 // so the first word of a note isn't clipped. Takes are downsampled to
@@ -21,6 +27,7 @@ import {
   getNarrationSnapshot,
   pauseNarration,
   resumeNarration,
+  stopNarration,
   subscribeNarration,
 } from "@/lib/narration";
 
@@ -63,6 +70,9 @@ const FLOOR_CAP = 0.03;
 type Saver = (passageId: string, text: string) => Promise<void>;
 
 let saver: Saver | null = null;
+// Live mode (the mentor's voice conversation): while set, the mic stays
+// open regardless of narration state and takes go here, not to `saver`.
+let liveHandler: ((text: string) => void) | null = null;
 let armed = false;
 let status: DictationStatus = "off";
 
@@ -135,6 +145,24 @@ export function configureDictation(save: Saver): () => void {
   };
 }
 
+/** Live mode: keep the mic open and hand every finished utterance to
+    `onUtterance`. Call from a user gesture (the permission prompt needs
+    one). Returns the cleanup that ends live listening. */
+export function startLiveDictation(
+  onUtterance: (text: string) => void
+): () => void {
+  liveHandler = onUtterance;
+  attachWatcher();
+  sync();
+  emit();
+  return () => {
+    if (liveHandler !== onUtterance) return;
+    liveHandler = null;
+    sync();
+    emit();
+  };
+}
+
 /** The mic chip. Arming from a click is what earns the browser-permission
     prompt its user gesture. Disarming mid-recording discards the take. */
 export function setVoiceNotesArmed(on: boolean): void {
@@ -155,7 +183,7 @@ function narrationActive(): boolean {
 }
 
 function sync() {
-  if (saver && armed && narrationActive()) {
+  if (liveHandler || (saver && armed && narrationActive())) {
     void openSession();
     // Autoplay policy can leave a fresh context suspended; narration
     // events and chip clicks are frequent chances to nudge it awake.
@@ -178,7 +206,7 @@ async function openSession() {
       },
     });
     // Things may have changed while the permission prompt was up.
-    if (!saver || !armed || !narrationActive()) {
+    if (!liveHandler && (!saver || !armed || !narrationActive())) {
       s.getTracks().forEach((t) => t.stop());
       return;
     }
@@ -287,16 +315,17 @@ function onAudio(e: AudioProcessingEvent) {
 function startTake() {
   aboveSec = 0;
   const item = getNarrationSnapshot().item;
-  // A solo play with no passage attached has nowhere to file a note.
-  if (!item || !item.passageId) return;
-  recPassage = item.passageId;
+  // A voice note with no passage attached has nowhere to file; live mode
+  // needs no destination beyond its handler.
+  if (!liveHandler && (!item || !item.passageId)) return;
+  recPassage = item?.passageId ?? null;
   take = ring; // the pre-roll: speech from before the detector fired
   takeSamples = ringSamples;
   ring = [];
   ringSamples = 0;
   belowSec = 0;
   recording = true;
-  pauseNarration();
+  pauseNarration(); // a no-op when nothing is playing (live mode, idle)
   setStatus("recording");
 }
 
@@ -310,15 +339,26 @@ function finishTake() {
   const passageId = recPassage;
   recPassage = null;
   const save = saver;
+  const live = liveHandler;
   const sessionLive = stream != null;
-  // Resume before transcribing — the listener shouldn't wait on a network
-  // round-trip to keep hearing the text.
-  resumeNarration();
   const speechSec = samples / sr - PREROLL_SEC - belowSec;
   belowSec = 0;
-  if (speechSec < MIN_SPEECH_SEC || !passageId || !save) {
+  const real =
+    speechSec >= MIN_SPEECH_SEC && (live != null || (passageId && save));
+  if (!real) {
+    // A false trigger: let the narration carry on as if nothing happened.
+    resumeNarration();
     if (status === "recording") setStatus(sessionLive ? "listening" : "off");
     return;
+  }
+  if (live) {
+    // Talking over the mentor means "stop and listen to me" — whatever was
+    // playing is about to be answered anyway.
+    stopNarration();
+  } else {
+    // A voice note: resume before transcribing — the listener shouldn't
+    // wait on a network round-trip to keep hearing the text.
+    resumeNarration();
   }
   setStatus("transcribing");
   const wav = encodeWav(chunks, samples, sr);
@@ -329,7 +369,11 @@ function finishTake() {
         setStatus(stream != null ? "listening" : "off");
         return;
       }
-      await save(passageId, trimmed);
+      if (live) {
+        live(trimmed);
+      } else {
+        await save!(passageId!, trimmed);
+      }
       flash("saved");
     })
     .catch(() => flash("error"));

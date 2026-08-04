@@ -62,9 +62,16 @@ def recent_messages(
 
 def add_message(
     db: Session, conversation_id: uuid.UUID, role: str, content: str
-) -> None:
-    db.add(Message(conversation_id=conversation_id, role=role, content=content))
+) -> Message:
+    message = Message(conversation_id=conversation_id, role=role, content=content)
+    db.add(message)
     db.commit()
+    db.refresh(message)
+    return message
+
+
+def get_message(db: Session, message_id: uuid.UUID) -> Message | None:
+    return db.get(Message, message_id)
 
 
 def delete(db: Session, conversation: Conversation) -> None:

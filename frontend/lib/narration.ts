@@ -17,7 +17,7 @@ export type QueueItem = {
       the item's identity: a button whose src matches is "this item". */
   src: string;
   passageId: string;
-  kind: "passage" | "breakdown";
+  kind: "passage" | "breakdown" | "reply";
   /** Ensure the item can play (e.g. the breakdown text exists — audio
       404s otherwise). Resolve false to skip the item silently. */
   prepare?: () => Promise<boolean>;
@@ -236,6 +236,24 @@ export function startNarration(
 
 export function stopNarration(): void {
   stop();
+}
+
+// 50ms of silence (8kHz mono 16-bit WAV) — enough to bless the element.
+const SILENCE =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAA" +
+  "A".repeat(1067) +
+  "==";
+
+/** Bless the shared audio element inside a user gesture, so a later
+    programmatic play (live mode narrating a reply that took 30s to stream)
+    isn't blocked by autoplay policy. Harmless no-op when already blessed. */
+export function primeAudio(): void {
+  if (snapshot.state !== "idle") return; // never disturb a real run
+  const a = ensureAudio();
+  a.src = SILENCE;
+  a.play().catch(() => {
+    /* a refusal now just means the later play may need a click */
+  });
 }
 
 /** Suspend playback without losing the queue — the dictation interlude.

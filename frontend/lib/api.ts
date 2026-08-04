@@ -537,7 +537,10 @@ export interface StreamHandlers {
   onMeta: (meta: { conversation_id: string }) => void;
   onDelta: (text: string) => void;
   onError: (message: string) => void;
-  onDone: () => void;
+  /** `message_id` is the persisted assistant reply (absent when the turn
+      produced nothing — an error, a cap hit). Live mode uses it to fetch
+      the reply's narration. */
+  onDone: (info: { message_id?: string }) => void;
   /** Free-tier monthly turn cap reached (HTTP 402). Optional; without it the
       cap surfaces through onError as plain text. */
   onCapHit?: (info: CapInfo) => void;
@@ -567,7 +570,7 @@ async function consumeSse(
     meta?: (data: { conversation_id: string }) => void;
     delta: (text: string) => void;
     error: (message: string) => void;
-    done: () => void;
+    done: (info: { message_id?: string }) => void;
   },
 ): Promise<void> {
   const reader = resp.body!.getReader();
@@ -585,7 +588,7 @@ async function consumeSse(
     const data = JSON.parse(dataLines.join("\n"));
     if (event === "meta") on.meta?.(data);
     else if (event === "error") on.error(data.error);
-    else if (event === "done") on.done();
+    else if (event === "done") on.done(data);
     else on.delta(data); // default event: a text delta (JSON string)
   };
 
@@ -623,19 +626,19 @@ export async function streamChat(
     });
   } catch {
     handlers.onError("Could not reach the server — try again in a moment.");
-    handlers.onDone();
+    handlers.onDone({});
     return;
   }
   if (resp.status === 401) {
     handlers.onError("Sign in to talk to the mentor.");
-    handlers.onDone();
+    handlers.onDone({});
     return;
   }
   if (resp.status === 402) {
     const info = await parseCapInfo(resp);
     if (handlers.onCapHit) handlers.onCapHit(info);
     else handlers.onError(info.message ?? "You've used this month's free turns.");
-    handlers.onDone();
+    handlers.onDone({});
     return;
   }
   if (resp.status === 403) {
@@ -644,12 +647,12 @@ export async function streamChat(
     handlers.onError(
       info.message ?? "Verify your email address to continue.",
     );
-    handlers.onDone();
+    handlers.onDone({});
     return;
   }
   if (!resp.ok || !resp.body) {
     handlers.onError(`Request failed (${resp.status})`);
-    handlers.onDone();
+    handlers.onDone({});
     return;
   }
   await consumeSse(resp, {
@@ -659,6 +662,11 @@ export async function streamChat(
     done: handlers.onDone,
   });
 }
+
+/** Narration of one of the mentor's replies (assistant messages only;
+    voice applied by the narration engine at play time). */
+export const messageAudioUrl = (messageId: string): string =>
+  `/api/messages/${messageId}/audio`;
 
 export async function fetchConversations(): Promise<ConversationSummary[]> {
   const resp = await fetch("/api/conversations");

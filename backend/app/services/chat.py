@@ -32,6 +32,7 @@ from app.crud import conversation as conversation_crud
 from app.crud import journal as journal_crud
 from app.models import Conversation, Message, User
 from app.schemas.chat import ChatRequest
+from app.services import audio as audio_service
 from app.services import daily as daily_service
 from app.services import llm
 from app.services.usage import enforce_turn_cap, record_usage
@@ -157,14 +158,18 @@ def stream_turn(
         yield f"data: {json.dumps(note)}\n\n"
 
     # Fresh session for the final write — robust to client disconnects
-    # mid-stream, and the request session is already closed anyway.
+    # mid-stream, and the request session is already closed anyway. The done
+    # event carries the persisted assistant message's id so the client can
+    # ask for its narration (live mode) without refetching the thread.
+    done: dict = {}
     if reply:
         with SessionLocal() as write_db:
-            conversation_crud.add_message(
+            message = conversation_crud.add_message(
                 write_db, conversation_id, "assistant", reply
             )
+            done["message_id"] = str(message.id)
 
-    yield "event: done\ndata: {}\n\n"
+    yield f"event: done\ndata: {json.dumps(done)}\n\n"
 
 
 def get_visible_conversation(
@@ -203,3 +208,26 @@ def delete_owned_conversation(
 ) -> None:
     conversation = _get_owned_conversation(db, conversation_id, user)
     conversation_crud.delete(db, conversation)
+
+
+def narrate_message(
+    db: Session, message_id: uuid.UUID, user: User, voice: str
+) -> tuple[bytes, str]:
+    """Speak one of the mentor's replies (live mode / the listen button).
+
+    Owner-only, assistant messages only. Unlike passage narration this is
+    NOT cached in the DB — replies are one-off and replays are rare; the
+    route's private cache header covers the replay-in-a-tab case."""
+    message = conversation_crud.get_message(db, message_id)
+    if message is None:
+        raise HTTPException(404, "Message not found")
+    conversation = conversation_crud.get(db, message.conversation_id)
+    if conversation is None or not visible_to(conversation, user):
+        raise HTTPException(404, "Message not found")
+    if message.role != "assistant":
+        raise HTTPException(404, "Nothing to narrate")
+    text = audio_service.strip_markdown(message.content)
+    voice = audio_service.resolve_voice(voice)
+    return audio_service.synthesize(
+        text, voice, instructions=audio_service.MENTOR_INSTRUCTIONS
+    )

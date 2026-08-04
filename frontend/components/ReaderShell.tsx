@@ -430,7 +430,7 @@ export default function ReaderShell({
   // Warm the timing map for whatever is being narrated, so a click inside
   // it jumps without the one-time transcription wait.
   useEffect(() => {
-    if (narratingId && narratingKind)
+    if (narratingId && narratingKind && narratingKind !== "reply")
       timingsFor(narratingKind, narratingId).catch(() => {});
   }, [narratingId, narratingKind, timingsFor]);
 

@@ -41,6 +41,12 @@ INSTRUCTIONS = (
     "boundaries."
 )
 
+# The mentor's replies are conversation, not recitation.
+MENTOR_INSTRUCTIONS = (
+    "Speak this reply as a seasoned, warm mentor talking with a student — "
+    "calm, direct, conversational, unhurried, without theatrics."
+)
+
 
 def resolve_voice(requested: str) -> str:
     """An explicit request must be a curated voice; empty falls back to the
@@ -81,7 +87,9 @@ def _chunks(text: str) -> list[str]:
     return chunks
 
 
-def synthesize(text: str, voice: str) -> tuple[bytes, str]:
+def synthesize(
+    text: str, voice: str, instructions: str = INSTRUCTIONS
+) -> tuple[bytes, str]:
     """Return (audio_bytes, media_type). Raises HTTPException on failure."""
     settings = get_settings()
     if not settings.openai_api_key:
@@ -96,7 +104,7 @@ def synthesize(text: str, voice: str) -> tuple[bytes, str]:
             "response_format": "mp3",
         }
         if settings.tts_model.startswith("gpt-4o"):
-            body["instructions"] = INSTRUCTIONS
+            body["instructions"] = instructions
         resp = httpx.post(
             "https://api.openai.com/v1/audio/speech",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},

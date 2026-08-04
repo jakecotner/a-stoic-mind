@@ -2,7 +2,7 @@
 Thin by design: parse, call the service, shape the response."""
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -62,6 +62,23 @@ def update_conversation(
 ):
     return chat_service.set_share_journal(
         db, conversation_id, user, req.share_journal
+    )
+
+
+@router.get("/messages/{message_id}/audio")
+def message_audio(
+    message_id: uuid.UUID,
+    voice: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(current_active_user),
+) -> Response:
+    data, media_type = chat_service.narrate_message(db, message_id, user, voice)
+    # Replies are immutable once written; a day of private caching covers
+    # replaying one within a session without re-synthesizing.
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=86400"},
     )
 
 
