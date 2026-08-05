@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   deleteConversation,
   fetchConversations,
@@ -232,6 +232,24 @@ export default function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!helpRef.current?.contains(e.target as Node)) setHelpOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHelpOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [helpOpen]);
 
   useEffect(() => {
     const stored = localStorage.getItem(COLLAPSED_KEY);
@@ -365,16 +383,30 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-black/10 px-2 py-3 dark:border-white/15">
-        <button
-          title={collapsed ? "Take the tour" : undefined}
-          className={`flex items-center gap-3 rounded px-2.5 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
-            collapsed ? "justify-center" : ""
-          }`}
-          onClick={() => window.dispatchEvent(new Event(TOUR_OPEN_EVENT))}
-        >
-          <HelpIcon />
-          {!collapsed && <span>Take the tour</span>}
-        </button>
+        <div ref={helpRef} className={`relative flex ${collapsed ? "justify-center" : ""}`}>
+          <button
+            title="Help"
+            aria-label="Help"
+            aria-expanded={helpOpen}
+            className="rounded p-2 opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+            onClick={() => setHelpOpen((o) => !o)}
+          >
+            <HelpIcon />
+          </button>
+          {helpOpen && (
+            <div className="absolute bottom-full left-0 z-10 mb-1 w-44 rounded-lg border border-black/10 bg-background py-1 shadow-lg dark:border-white/15">
+              <button
+                className="flex w-full items-center gap-3 px-3 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                onClick={() => {
+                  setHelpOpen(false);
+                  window.dispatchEvent(new Event(TOUR_OPEN_EVENT));
+                }}
+              >
+                Take the tour
+              </button>
+            </div>
+          )}
+        </div>
         {loading ? null : user ? (
           <>
             {!collapsed && (

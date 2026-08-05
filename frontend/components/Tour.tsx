@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useUser } from "@/lib/useUser";
 
 const SEEN_KEY = "astoicmind:tour-seen";
-/** Dispatched (window) by the sidebar's "Take the tour" button. */
+/** Dispatched (window) by the sidebar's help menu ("Take the tour"). */
 export const TOUR_OPEN_EVENT = "astoicmind:tour-open";
 
 // Token-consuming and auth flows shouldn't be interrupted; the tour waits
