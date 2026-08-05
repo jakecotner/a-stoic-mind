@@ -7,8 +7,12 @@ import type { Passage, TocPart, Work } from "./api";
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
 const CACHED = { next: { revalidate: 3600 } };
 
-export async function getWorks(): Promise<Work[]> {
-  const resp = await fetch(`${API_URL}/api/works`, CACHED);
+/** The works listing; `tradition` narrows to one tradition's shelf,
+    unfiltered returns the whole corpus (used to resolve work slugs, which
+    are tradition-independent). */
+export async function getWorks(tradition?: string): Promise<Work[]> {
+  const arg = tradition ? `?tradition=${encodeURIComponent(tradition)}` : "";
+  const resp = await fetch(`${API_URL}/api/works${arg}`, CACHED);
   if (!resp.ok) throw new Error(`Could not load the library (${resp.status})`);
   return resp.json();
 }

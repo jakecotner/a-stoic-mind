@@ -9,6 +9,7 @@ approximate, which is fine for straight-through narration).
 import logging
 import re
 import uuid
+from collections.abc import Iterator
 
 import httpx
 from fastapi import HTTPException
@@ -120,6 +121,50 @@ def synthesize(
             raise HTTPException(502, "Speech synthesis failed")
         parts.append(resp.content)
     return b"".join(parts), "audio/mpeg"
+
+
+def synthesize_stream(
+    text: str, voice: str, instructions: str = INSTRUCTIONS
+) -> Iterator[bytes]:
+    """Like synthesize, but yields MP3 frames as the provider produces them,
+    so the browser can start playback before synthesis finishes.
+
+    Not a bare generator on purpose: the unconfigured check must raise
+    BEFORE the route hands a 200 status line to the client. A provider
+    failure mid-stream can't change the status anymore — it's logged and the
+    stream truncates, which the player surfaces as an early end."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(503, "Audio narration is not configured")
+
+    def frames() -> Iterator[bytes]:
+        for chunk in _chunks(text):
+            body: dict = {
+                "model": settings.tts_model,
+                "voice": voice,
+                "input": chunk,
+                "response_format": "mp3",
+            }
+            if settings.tts_model.startswith("gpt-4o"):
+                body["instructions"] = instructions
+            with httpx.stream(
+                "POST",
+                "https://api.openai.com/v1/audio/speech",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                json=body,
+                timeout=120.0,
+            ) as resp:
+                if resp.status_code != 200:
+                    resp.read()
+                    logger.error(
+                        "TTS stream failed: %s %s",
+                        resp.status_code,
+                        resp.text[:500],
+                    )
+                    return
+                yield from resp.iter_bytes()
+
+    return frames()
 
 
 # OpenAI's transcription endpoint caps uploads at 25 MB — reject earlier

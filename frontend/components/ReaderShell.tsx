@@ -471,9 +471,11 @@ export default function ReaderShell({
               {work.work}
               {label && <span className="opacity-60"> · {label}</span>}
             </h1>
-            <p className="mt-1 text-sm opacity-60">
-              translated by {work.translator}
-            </p>
+            {work.translator && (
+              <p className="mt-1 text-sm opacity-60">
+                translated by {work.translator}
+              </p>
+            )}
             <p className="mt-3 text-xs opacity-50">
               Click a passage for its plain-spoken breakdown, or press play
               to listen — while narration plays, clicking any word jumps the

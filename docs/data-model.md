@@ -29,12 +29,14 @@ erDiagram
         uuid id PK
         uuid user_id FK "nullable"
         string title "nullable"
+        string tradition
         bool share_journal
         datetime created_at
     }
     daily_passages {
         uuid id PK
-        date date UK
+        date date
+        string tradition
         uuid passage_id FK
         datetime created_at
     }
@@ -43,6 +45,7 @@ erDiagram
         uuid user_id FK
         uuid passage_id FK "nullable"
         date date
+        string tradition
         text content
         text reflection "nullable"
         string reflection_model "nullable"
@@ -110,6 +113,7 @@ erDiagram
     }
     passages {
         uuid id PK
+        string tradition
         string author
         string work
         string reference UK
@@ -140,6 +144,7 @@ erDiagram
         datetime ended_at "nullable"
         int duration_seconds "nullable"
         array steps_completed
+        uuid conversation_id FK "nullable"
     }
     users {
         uuid id PK
@@ -149,6 +154,8 @@ erDiagram
         bool is_superuser
         bool is_verified
         string tier
+        string tradition
+        datetime tradition_chosen_at "nullable"
         string stripe_customer_id UK "nullable"
         datetime plus_renews_at "nullable"
         bool plus_cancel_at_period_end
@@ -170,4 +177,5 @@ erDiagram
     passages ||--o{ passage_reads : "passage_id · CASCADE"
     users ||--o{ practice_intentions : "user_id · CASCADE"
     users ||--o{ practice_sessions : "user_id · CASCADE"
+    conversations |o--o{ practice_sessions : "conversation_id · SET NULL"
 ```

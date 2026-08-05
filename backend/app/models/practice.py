@@ -76,3 +76,11 @@ class PracticeSession(Base):
     steps_completed: Mapped[list[str]] = mapped_column(
         ARRAY(String(40)), server_default="{}"
     )
+    # Set only for SPOKEN sessions: the mentor conversation that ran the
+    # sitting (Plus feature). SET NULL so deleting the chat thread keeps the
+    # practice record — the sitting happened either way.
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )

@@ -8,6 +8,10 @@ Works are read in their natural units, derived from the reference locator:
 - Lectures (Musonius)      -> lecture     ("Lectures 16.2"    -> part "16")
 - Discourses               -> chapter     ("Discourses 1.15.3"-> part "1.15")
 - multi-book essays        -> book        ("Of Anger 2.6"     -> part "2")
+- Walden                   -> chapter     ("Walden 5.3"       -> part "5",
+                                           labeled with its chapter title)
+- Nature (Emerson)         -> chapter     ("Nature 3.2"       -> part "3",
+                                           labeled with its chapter title)
 - single-book works        -> read whole  ("Enchiridion 5"    -> part "")
 
 The multi-book essays are an explicit set — a locator like "9.2" means
@@ -28,6 +32,45 @@ from app.schemas.reading import TocPartOut
 _LETTERS = "Moral Letters to Lucilius"
 _LECTURES = "Lectures"  # Musonius Rufus; 13a/13b-style lecture numbers
 _MULTI_BOOK = {"Of Anger", "Of Clemency", "On Benefits"}
+_WALDEN = "Walden"
+_NATURE = "Nature"
+
+# Chapter titles by number, for Nature's TOC labels ("Nature 3.2" ->
+# "3. Commodity"). Must match scripts/ingest/ingest_emerson.py.
+_NATURE_CHAPTERS = (
+    "Introduction",
+    "Nature",
+    "Commodity",
+    "Beauty",
+    "Language",
+    "Discipline",
+    "Idealism",
+    "Spirit",
+    "Prospects",
+)
+
+# Chapter titles by number, for TOC labels ("Walden 5.3" -> "5. Solitude").
+# Must match the chapter order in scripts/ingest/ingest_walden.py.
+_WALDEN_CHAPTERS = (
+    "Economy",
+    "Where I Lived, and What I Lived For",
+    "Reading",
+    "Sounds",
+    "Solitude",
+    "Visitors",
+    "The Bean-Field",
+    "The Village",
+    "The Ponds",
+    "Baker Farm",
+    "Higher Laws",
+    "Brute Neighbors",
+    "House-Warming",
+    "Former Inhabitants and Winter Visitors",
+    "Winter Animals",
+    "The Pond in Winter",
+    "Spring",
+    "Conclusion",
+)
 
 
 def _locator(passage: Passage) -> str:
@@ -42,7 +85,7 @@ def part_key(passage: Passage) -> str:
     if passage.work == "Discourses":
         return ".".join(bits[:2])
     if (
-        passage.work in ("Meditations", _LETTERS, _LECTURES)
+        passage.work in ("Meditations", _LETTERS, _LECTURES, _WALDEN, _NATURE)
         or passage.work in _MULTI_BOOK
     ):
         return bits[0]
@@ -59,6 +102,10 @@ def _part_label(work: str, key: str) -> str:
         return f"Letter {key}"
     if work == _LECTURES:
         return f"Lecture {key}"
+    if work == _WALDEN:
+        return f"{key}. {_WALDEN_CHAPTERS[int(key) - 1]}"
+    if work == _NATURE:
+        return f"{key}. {_NATURE_CHAPTERS[int(key) - 1]}"
     return f"Book {key}"
 
 

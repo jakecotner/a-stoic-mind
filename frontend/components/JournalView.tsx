@@ -19,7 +19,24 @@ import {
 } from "@/lib/api";
 import { configureDictation } from "@/lib/dictation";
 import { type ContinueMode, type QueueItem } from "@/lib/narration";
+import type { TraditionMeta } from "@/lib/tradition";
 import { useUser } from "@/lib/useUser";
+
+/** "author, work · translated by X" — English originals (translator empty,
+    e.g. Walden) carry no translation credit. */
+function passageAttribution(p: { author: string; work: string; translator: string }) {
+  return (
+    <>
+      {p.author}, <em>{p.work}</em>
+      {p.translator && (
+        <>
+          {" "}
+          &middot; translated by {p.translator}
+        </>
+      )}
+    </>
+  );
+}
 
 const navButtonCls =
   "rounded border border-black/15 px-2 py-1 text-sm hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:border-white/20 dark:hover:bg-white/10";
@@ -105,7 +122,14 @@ function PassageArticle({
   );
 }
 
-export default function JournalView({ daily }: { daily: Daily | null }) {
+export default function JournalView({
+  daily,
+  tradition,
+}: {
+  daily: Daily | null;
+  /** The viewing tradition's display content (brand, blurb). */
+  tradition: TraditionMeta;
+}) {
   const { user } = useUser();
   // null = today (the server-rendered view); an ISO date = browsing back.
   const [on, setOn] = useState<string | null>(null);
@@ -194,23 +218,16 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 text={daily.passage.text}
                 audioSrc={passageAudioUrl(daily.passage.id)}
                 audioQueue={dayQueue(daily.passage.id)}
-                attribution={
-                  <>
-                    {daily.passage.author}, <em>{daily.passage.work}</em>{" "}
-                    &middot; translated by {daily.passage.translator}
-                  </>
-                }
+                attribution={passageAttribution(daily.passage)}
               />
             ) : (
               <article>
                 <h1 className="mb-4 text-2xl font-semibold tracking-tight">
-                  A Stoic Mind
+                  {tradition.brand}
                 </h1>
                 <p className="text-lg opacity-75">
-                  A hand-picked passage from the Stoic classics every day, with
-                  a grounded reflection — and a journal to write alongside it.
-                  Today&apos;s passage is unavailable right now; try again in a
-                  moment.
+                  {tradition.landingBlurb} Today&apos;s passage is unavailable
+                  right now; try again in a moment.
                 </p>
               </article>
             ))}
@@ -245,12 +262,7 @@ export default function JournalView({ daily }: { daily: Daily | null }) {
                 text={pastPassage.text}
                 audioSrc={passageAudioUrl(pastPassage.id)}
                 audioQueue={dayQueue(pastPassage.id)}
-                attribution={
-                  <>
-                    {pastPassage.author}, <em>{pastPassage.work}</em> &middot;
-                    translated by {pastPassage.translator}
-                  </>
-                }
+                attribution={passageAttribution(pastPassage)}
               />
             ) : (
               <p className="pt-2 text-sm opacity-60">

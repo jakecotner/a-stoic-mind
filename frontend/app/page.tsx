@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import JournalView from "@/components/JournalView";
 import type { Daily } from "@/lib/api";
+import { traditionMeta, type TraditionSlug } from "@/lib/tradition";
+import { getViewingTradition } from "@/lib/tradition-server";
 
 // The journal — also the landing page: today's passage, its reflection, and
-// the journal pad, with day-by-day browsing for signed-in users.
+// the journal pad, with day-by-day browsing for signed-in users. Which
+// tradition's passage renders follows the viewing-tradition cookie.
 // A server component — the passage text is in the HTML search engines see.
 // Server code can't use the /api rewrite (that's the browser-facing proxy),
 // so it talks to the backend origin directly, like lib/auth-server.ts.
@@ -23,9 +26,9 @@ export const metadata: Metadata = {
 
 /** Today's passage, or null when the backend is unreachable — the page
     renders a quiet fallback rather than erroring. */
-async function getDaily(): Promise<Daily | null> {
+async function getDaily(tradition: TraditionSlug): Promise<Daily | null> {
   try {
-    const resp = await fetch(`${API_URL}/api/daily`, {
+    const resp = await fetch(`${API_URL}/api/daily?tradition=${tradition}`, {
       next: { revalidate: 300 },
     });
     if (!resp.ok) return null;
@@ -36,6 +39,7 @@ async function getDaily(): Promise<Daily | null> {
 }
 
 export default async function JournalPage() {
-  const daily = await getDaily();
-  return <JournalView daily={daily} />;
+  const tradition = await getViewingTradition();
+  const daily = await getDaily(tradition);
+  return <JournalView daily={daily} tradition={traditionMeta(tradition)} />;
 }

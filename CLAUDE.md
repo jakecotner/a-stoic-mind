@@ -33,6 +33,18 @@
   the docker container `astoicmind-db` on host port **5436**
   (`backend/docker-compose.yml`; 5432–5435 are taken by other projects'
   containers on this machine).
+- **Shared dev servers — multiple agents work in this checkout at once.**
+  All Next.js state lives in the single `.next` folder, so builds and
+  servers collide regardless of port. Rules:
+  - ONE dev server pair for everyone: `next dev` on 3000 + uvicorn on 8000.
+    Before starting either, probe it (`Invoke-WebRequest
+    http://localhost:3000`, `http://localhost:8000/api/health`); if it
+    already serves this app, reuse it — `next dev` hot-reloads every file
+    change in the tree, including yours.
+  - Never kill a node/python process you didn't start.
+  - Never run `npm run build` or `next start` while any next process for
+    this repo is alive — verify through the dev server, not a production
+    build. Production builds are for deploys, coordinated with the user.
 - Backend runs from `backend/` with its venv:
   `.venv/Scripts/python -m uvicorn app.main:app --port 8000`
 - Run alembic as `python -m alembic` (the exe entry point can't import `app`).

@@ -36,6 +36,10 @@ class JournalEntry(Base):
         nullable=True,
     )
     date: Mapped[date] = mapped_column(Date)
+    # The user's tradition when the entry was written (registry slug —
+    # app/services/tradition.py). Decides which voice writes the
+    # reflection, and keeps old reflections in the voice they got.
+    tradition: Mapped[str] = mapped_column(String(40), server_default="stoicism")
     content: Mapped[str] = mapped_column(Text)
     # The LLM's response to the entry, written once shortly after saving
     # (metered — see services/journal.py::reflect_on_entry). NULL until

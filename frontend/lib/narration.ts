@@ -103,10 +103,12 @@ export const setContinuePref = (mode: ContinueMode): void => {
   emit();
 };
 
-/** The narration URL with the chosen voice applied. */
+/** The narration URL with the chosen voice applied. Local object/data URLs
+    (live mode's per-sentence clips, already voiced at synthesis time) pass
+    through untouched — a query string would corrupt them. */
 export function withVoice(src: string): string {
   const v = getVoicePref();
-  if (!v) return src;
+  if (!v || src.startsWith("blob:") || src.startsWith("data:")) return src;
   return src + (src.includes("?") ? "&" : "?") + "voice=" + encodeURIComponent(v);
 }
 
@@ -123,6 +125,12 @@ let prefetched: string | null = null;
 // True while WE paused the element (a dictation interlude) — tells the
 // pause handler apart from a hardware/OS pause, which means "stop".
 let suspended = false;
+// An open-ended run (live mode): the queue grows while it plays, so running
+// off the end means "wait for the next clip", not "done".
+let openEnded = false;
+// Parked at the end of an open-ended queue, waiting for an append to kick
+// playback back into motion.
+let waiting = false;
 // A pending word-level jump: play is held until the target second is inside
 // the buffer (the audio endpoint has no Range support, so seeking past the
 // buffer would restart the stream from zero).
@@ -238,6 +246,49 @@ export function stopNarration(): void {
   stop();
 }
 
+// --- Live-reply runs (the mentor speaking sentence-by-sentence while the
+// reply is still streaming). The page synthesizes each sentence as the text
+// arrives and appends the clip; playback starts on the first append and
+// waits (state "loading") whenever audio is momentarily ahead of synthesis.
+
+/** Open an empty, growing run. Returns the owner token every append and the
+    final close must present. */
+export function startLiveReply(): number {
+  stop();
+  const token = ++run;
+  builder = null;
+  queue = [];
+  index = -1;
+  openEnded = true;
+  waiting = true; // parked until the first clip lands
+  ensureAudio();
+  emit("loading");
+  return token;
+}
+
+/** Append one synthesized clip to a live run. A stale token (the listener
+    interrupted, another run started) is a silent no-op. */
+export function appendLiveClip(
+  token: number,
+  src: string,
+  passageId: string
+): void {
+  if (token !== run || !openEnded) return;
+  queue.push({ src, passageId, kind: "reply" });
+  if (waiting) {
+    waiting = false;
+    void advance(token);
+  }
+}
+
+/** No more clips are coming: the run ends when playback drains the queue
+    (or immediately, if it's already parked at the end). */
+export function finishLiveReply(token: number): void {
+  if (token !== run) return;
+  openEnded = false;
+  if (waiting) stop();
+}
+
 // 50ms of silence (8kHz mono 16-bit WAV) — enough to bless the element.
 const SILENCE =
   "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAA" +
@@ -293,6 +344,8 @@ function stop() {
   index = -1;
   prefetched = null;
   suspended = false;
+  openEnded = false;
+  waiting = false;
   seekTarget = null;
   if (audio) {
     audio.pause();
@@ -309,6 +362,13 @@ async function advance(token: number) {
   index++;
   const item = queue[index];
   if (!item) {
+    if (openEnded) {
+      // Playback caught up with synthesis: park until the next clip.
+      index--;
+      waiting = true;
+      emit("loading");
+      return;
+    }
     stop();
     return;
   }

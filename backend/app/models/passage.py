@@ -1,8 +1,10 @@
-"""The corpus: public-domain Stoic texts, chunked into citable passages.
+"""The corpus: public-domain source texts, chunked into citable passages.
 
-Shared library content — owned by no user, immutable once ingested.
-Imported from the first-generation stoa project's database; the ingestion
-scripts live in scripts/ingest/ for provenance and re-runs.
+Shared library content — owned by no user, immutable once ingested. Each
+passage belongs to exactly one tradition (registry:
+app/services/tradition.py). The Stoic corpus was imported from the
+first-generation stoa project's database; the ingestion scripts live in
+scripts/ingest/ for provenance and re-runs.
 """
 import uuid
 from datetime import datetime
@@ -35,6 +37,11 @@ class Passage(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    # Which tradition's corpus this belongs to — a stable registry slug
+    # (app/services/tradition.py), append-only, never renamed.
+    tradition: Mapped[str] = mapped_column(
+        String(40), server_default="stoicism", index=True
     )
     author: Mapped[str] = mapped_column(String(100))
     work: Mapped[str] = mapped_column(String(200))

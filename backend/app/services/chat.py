@@ -60,7 +60,11 @@ def _build_context(db: Session, conversation: Conversation, user: User | None) -
     """The volatile context for this turn: today's passage always, journal
     excerpts only with per-conversation consent."""
     parts: list[str] = []
-    daily_row = daily_service.get_or_assign(db, date.today())
+    # The conversation's tradition, not the user's current one — an old
+    # thread keeps seeing its own tradition's passage of the day.
+    daily_row = daily_service.get_or_assign(
+        db, date.today(), conversation.tradition
+    )
     p = daily_row.passage
     parts.append(
         f"Today's passage — {p.reference} ({p.author}, {p.work}):\n\n{p.text}"
@@ -83,7 +87,7 @@ def _build_context(db: Session, conversation: Conversation, user: User | None) -
 
 def prepare_turn(
     db: Session, req: ChatRequest, user: User
-) -> tuple[uuid.UUID, list[Message], str]:
+) -> tuple[uuid.UUID, list[Message], str, str]:
     """Everything that happens BEFORE streaming: cap check, conversation
     resolution, history load, context assembly, user-message persist. Closes
     the request session on the way out — the stream must not hold a pool
@@ -107,6 +111,8 @@ def prepare_turn(
             title=req.message[:80],
             user_id=user.id,
             share_journal=req.share_journal,
+            # New threads start in the user's home tradition and keep it.
+            tradition=user.tradition,
         )
 
     history = conversation_crud.recent_messages(
@@ -116,11 +122,12 @@ def prepare_turn(
     conversation_crud.add_message(db, conversation.id, "user", req.message)
 
     conversation_id = conversation.id
+    tradition = conversation.tradition
     # Everything the stream needs is loaded; release the request session now.
     # Detached history is fine: only already-loaded column attributes are
     # read past this point.
     db.close()
-    return conversation_id, history, context
+    return conversation_id, history, context, tradition
 
 
 def stream_turn(
@@ -129,6 +136,7 @@ def stream_turn(
     user_message: str,
     context: str,
     user_id: uuid.UUID | None,
+    tradition: str,
 ) -> Iterator[str]:
     """The SSE event generator. Runs after the request session is closed."""
     meta = {"conversation_id": str(conversation_id)}
@@ -137,7 +145,9 @@ def stream_turn(
     chunks: list[str] = []
     final = None
     try:
-        for item in llm.stream_reply(history, user_message, context):
+        for item in llm.stream_reply(
+            history, user_message, context, tradition=tradition
+        ):
             if isinstance(item, str):
                 chunks.append(item)
                 yield f"data: {json.dumps(item)}\n\n"
@@ -212,12 +222,14 @@ def delete_owned_conversation(
 
 def narrate_message(
     db: Session, message_id: uuid.UUID, user: User, voice: str
-) -> tuple[bytes, str]:
-    """Speak one of the mentor's replies (live mode / the listen button).
+) -> Iterator[bytes]:
+    """Speak one of the mentor's replies (the listen button).
 
     Owner-only, assistant messages only. Unlike passage narration this is
     NOT cached in the DB — replies are one-off and replays are rare; the
-    route's private cache header covers the replay-in-a-tab case."""
+    route's private cache header covers the replay-in-a-tab case. Streamed
+    so playback starts on the first synthesized frames instead of after the
+    whole reply is voiced."""
     message = conversation_crud.get_message(db, message_id)
     if message is None:
         raise HTTPException(404, "Message not found")
@@ -228,6 +240,28 @@ def narrate_message(
         raise HTTPException(404, "Nothing to narrate")
     text = audio_service.strip_markdown(message.content)
     voice = audio_service.resolve_voice(voice)
-    return audio_service.synthesize(
+    return audio_service.synthesize_stream(
+        text, voice, instructions=audio_service.MENTOR_INSTRUCTIONS
+    )
+
+
+# Live mode sends one sentence at a time; anything longer than this isn't a
+# sentence and is refused rather than synthesized on someone's dime.
+NARRATE_SNIPPET_MAX = 1500
+
+
+def narrate_snippet(user: User, text: str, voice: str) -> Iterator[bytes]:
+    """Speak a fragment of a reply that's still streaming (live mode's
+    sentence-by-sentence pipeline). The text isn't persisted yet, so unlike
+    narrate_message there's nothing to look up — verified members only, with
+    a hard length cap; the route adds a per-IP rate cap."""
+    ensure_verified(user)
+    text = audio_service.strip_markdown(text)
+    if not text:
+        raise HTTPException(422, "Nothing to narrate")
+    if len(text) > NARRATE_SNIPPET_MAX:
+        raise HTTPException(422, "Snippet too long")
+    voice = audio_service.resolve_voice(voice)
+    return audio_service.synthesize_stream(
         text, voice, instructions=audio_service.MENTOR_INSTRUCTIONS
     )

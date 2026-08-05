@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.tradition import Tradition
+
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
@@ -16,6 +18,15 @@ class ChatRequest(BaseModel):
 
 class ConversationUpdate(BaseModel):
     share_journal: bool
+
+
+class NarrateRequest(BaseModel):
+    """Live mode's sentence-by-sentence narration: one fragment of a reply
+    that is still streaming (so it has no message id to point at yet). The
+    cap matches services/chat.py NARRATE_SNIPPET_MAX."""
+
+    text: str = Field(min_length=1, max_length=1500)
+    voice: str = ""
 
 
 # Response models are kept precise (Literal unions, required fields) because
@@ -36,6 +47,8 @@ class ConversationSummary(BaseModel):
     id: uuid.UUID
     title: str | None
     share_journal: bool
+    # The voice the thread started in — it keeps it for life.
+    tradition: Tradition
     created_at: datetime
 
 
@@ -45,5 +58,6 @@ class ConversationOut(BaseModel):
     id: uuid.UUID
     title: str | None
     share_journal: bool
+    tradition: Tradition
     created_at: datetime
     messages: list[MessageOut]

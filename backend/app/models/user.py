@@ -25,6 +25,13 @@ class User(Base):
     # "free" | "plus" — owned by Stripe webhooks (app/services/billing.py);
     # the admin endpoint remains as a manual override.
     tier: Mapped[str] = mapped_column(String(10), server_default="free")
+    # Home tradition (registry slug — app/services/tradition.py). Free users
+    # choose once: tradition_chosen_at stamps the first explicit choice (the
+    # signup default doesn't count), and changing it after that is Plus.
+    tradition: Mapped[str] = mapped_column(String(40), server_default="stoicism")
+    tradition_chosen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Stripe linkage. renews/cancel mirror the subscription state from webhook
     # events so /api/billing/summary never has to call Stripe.
     stripe_customer_id: Mapped[str | None] = mapped_column(

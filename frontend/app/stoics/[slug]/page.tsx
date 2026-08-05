@@ -52,7 +52,7 @@ export default async function StoicPage({ params }: Params) {
 
       <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end">
         <div className="relative aspect-[4/5] w-40 shrink-0 overflow-hidden rounded-lg bg-black/5 sm:w-44 dark:bg-white/10">
-          <StoicPortrait stoic={stoic} sizes="176px" priority />
+          <StoicPortrait subject={stoic} sizes="176px" priority />
         </div>
         <div>
           {era && (

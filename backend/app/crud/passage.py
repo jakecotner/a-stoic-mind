@@ -16,22 +16,24 @@ def get_by_reference(db: Session, reference: str) -> Passage | None:
     return db.scalar(select(Passage).where(Passage.reference == reference))
 
 
-def list_works(db: Session) -> list[Row]:
-    """One row per work: author, work, translator, passage_count,
-    original_language (non-null when the original text is ingested)."""
-    return list(
-        db.execute(
-            select(
-                Passage.author,
-                Passage.work,
-                Passage.translator,
-                func.count().label("passage_count"),
-                func.max(Passage.original_language).label("original_language"),
-            )
-            .group_by(Passage.author, Passage.work, Passage.translator)
-            .order_by(Passage.author, Passage.work)
+def list_works(db: Session, tradition: str | None = None) -> list[Row]:
+    """Works, one row each: author, work, translator, passage_count,
+    original_language (non-null when the original text is ingested).
+    `tradition` narrows to one tradition; None returns the whole corpus."""
+    stmt = (
+        select(
+            Passage.author,
+            Passage.work,
+            Passage.translator,
+            func.count().label("passage_count"),
+            func.max(Passage.original_language).label("original_language"),
         )
+        .group_by(Passage.author, Passage.work, Passage.translator)
+        .order_by(Passage.author, Passage.work)
     )
+    if tradition is not None:
+        stmt = stmt.where(Passage.tradition == tradition)
+    return list(db.execute(stmt))
 
 
 def for_work(db: Session, work: str) -> list[Passage]:

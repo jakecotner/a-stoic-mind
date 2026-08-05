@@ -29,6 +29,10 @@ class Conversation(Base):
         index=True,
     )
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # The tradition the conversation was started in (registry slug —
+    # app/services/tradition.py). The mentor keeps this voice even if the
+    # user later switches their home tradition.
+    tradition: Mapped[str] = mapped_column(String(40), server_default="stoicism")
     # The mentor sees the user's recent journal entries in THIS conversation
     # only while this is on. Off by default — the journal is intimate, and
     # sharing it is an explicit, visible choice (anonymous conversations

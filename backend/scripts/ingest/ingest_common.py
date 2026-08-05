@@ -1,10 +1,71 @@
 """Shared helpers for corpus ingestion scripts."""
 
+import re
 from pathlib import Path
 
 import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
+
+
+def clean_passage_text(text: str) -> str:
+    """Strip Gutenberg markup: _emphasis_ pairs and [N] footnote markers."""
+    text = re.sub(r"_(.+?)_", r"\1", text, flags=re.DOTALL)
+    text = re.sub(r"\[\d+\]", "", text)
+    return text.strip()
+
+
+def _is_verse(block: list[str]) -> bool:
+    return all(ln.startswith((" ", "\t")) for ln in block if ln.strip())
+
+
+def paragraphs_from_lines(
+    lines: list[str], skip_blocks: frozenset[str] = frozenset()
+) -> list[str]:
+    """Paragraphs from a Gutenberg plain-text region: blank-line-separated
+    blocks; prose blocks unwrap to one line, verse/quotation blocks keep
+    their line breaks (dedented) and attach to the paragraph that introduces
+    them. A prose block starting lowercase is the same paragraph resuming
+    after an inline verse — it merges back too. Blocks whose raw text is in
+    skip_blocks (image placeholders, closing marks) are dropped."""
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for ln in lines:
+        if ln.strip():
+            current.append(ln)
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+
+    paragraphs: list[str] = []
+    for block in blocks:
+        raw = " ".join(ln.strip() for ln in block)
+        if raw in skip_blocks or re.fullmatch(r"-{10,}", raw):
+            continue
+        if _is_verse(block):
+            indent = min(len(ln) - len(ln.lstrip()) for ln in block if ln.strip())
+            text = clean_passage_text(
+                "\n".join(ln[indent:].rstrip() for ln in block)
+            )
+        else:
+            text = clean_passage_text(" ".join(ln.strip() for ln in block))
+            # A new paragraph — unless it starts lowercase (the previous one
+            # resuming after inline verse) or the previous one ends with an
+            # em-dash lead-in (it introduces this block: a quote, a rhyme).
+            if not (
+                (text and text[0].islower())
+                or (paragraphs and paragraphs[-1].rstrip().endswith("—"))
+            ):
+                paragraphs.append(text)
+                continue
+        # Continuation of the open paragraph.
+        if paragraphs:
+            paragraphs[-1] += "\n\n" + text
+        else:
+            paragraphs.append(text)
+    return [p for p in paragraphs if p]
 
 
 def fetch_cached(url: str, cache_path: Path) -> str:

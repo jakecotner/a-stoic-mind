@@ -44,6 +44,9 @@ class GuideOut(BaseModel):
 
 class SessionStartIn(BaseModel):
     guide: GuideKey | None = None
+    # Spoken sessions (Plus): the mentor runs the sitting as a live-voice
+    # conversation. Guided only — freeform stays written.
+    spoken: bool = False
 
 
 class SessionEndIn(BaseModel):
@@ -64,6 +67,18 @@ class SessionOut(BaseModel):
     ended_at: datetime | None
     duration_seconds: int | None
     steps_completed: list[str]
+    # Set only for spoken sessions: the mentor conversation running them.
+    conversation_id: uuid.UUID | None
+
+
+class SessionTurnIn(BaseModel):
+    """One spoken utterance inside a spoken session, already transcribed
+    client-side. `probed` tells the mentor it has used its one follow-up on
+    this step."""
+
+    step: Annotated[str, Field(max_length=40)]
+    text: str = Field(min_length=1, max_length=8000)
+    probed: bool = False
 
 
 class CalendarDayOut(BaseModel):

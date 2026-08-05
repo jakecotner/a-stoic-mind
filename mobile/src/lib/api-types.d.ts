@@ -401,7 +401,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Works */
+        /**
+         * List Works
+         * @description The library listing; `tradition` narrows to one tradition's works.
+         *     Reading is open — unfiltered returns the whole corpus.
+         */
         get: operations["list_works_api_works_get"];
         put?: never;
         post?: never;
@@ -498,6 +502,49 @@ export interface paths {
         put?: never;
         /** Start Session */
         post: operations["start_session_api_practice_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/sessions/{session_id}/turn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Session Turn
+         * @description One spoken utterance in a spoken session. Same SSE contract as
+         *     /api/chat — the turn streams over the session's linked conversation.
+         */
+        post: operations["session_turn_api_practice_sessions__session_id__turn_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/practice/guides/{guide_key}/steps/{step_key}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Step Audio
+         * @description The mentor speaking a guide step's prompt (spoken sessions, Plus).
+         *     Static content per (step, voice) — a week of private caching means one
+         *     synthesis covers a daily practice.
+         */
+        get: operations["step_audio_api_practice_guides__guide_key__steps__step_key__audio_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -648,6 +695,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/traditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Traditions */
+        get: operations["list_traditions_api_traditions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traditions/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Choose Tradition */
+        put: operations["choose_tradition_api_traditions_mine_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat": {
         parameters: {
             query?: never;
@@ -712,6 +793,26 @@ export interface paths {
         get: operations["message_audio_api_messages__message_id__audio_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/narrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Narrate
+         * @description Speak one sentence of a reply that's still streaming (live mode).
+         */
+        post: operations["narrate_api_chat_narrate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1154,6 +1255,11 @@ export interface components {
             /** Share Journal */
             share_journal: boolean;
             /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
+            /**
              * Created At
              * Format: date-time
              */
@@ -1172,6 +1278,11 @@ export interface components {
             title: string | null;
             /** Share Journal */
             share_journal: boolean;
+            /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
             /**
              * Created At
              * Format: date-time
@@ -1290,6 +1401,11 @@ export interface components {
              * Format: date
              */
             date: string;
+            /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
             /** Content */
             content: string;
             /** Reflection */
@@ -1359,6 +1475,21 @@ export interface components {
             /** Google Sign In */
             google_sign_in: boolean;
         };
+        /**
+         * NarrateRequest
+         * @description Live mode's sentence-by-sentence narration: one fragment of a reply
+         *     that is still streaming (so it has no message id to point at yet). The
+         *     cap matches services/chat.py NARRATE_SNIPPET_MAX.
+         */
+        NarrateRequest: {
+            /** Text */
+            text: string;
+            /**
+             * Voice
+             * @default
+             */
+            voice: string;
+        };
         /** NoteCreate */
         NoteCreate: {
             /**
@@ -1420,6 +1551,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
             /** Author */
             author: string;
             /** Work */
@@ -1474,11 +1610,35 @@ export interface components {
             duration_seconds: number | null;
             /** Steps Completed */
             steps_completed: string[];
+            /** Conversation Id */
+            conversation_id: string | null;
         };
         /** SessionStartIn */
         SessionStartIn: {
             /** Guide */
             guide?: ("morning" | "evening") | null;
+            /**
+             * Spoken
+             * @default false
+             */
+            spoken: boolean;
+        };
+        /**
+         * SessionTurnIn
+         * @description One spoken utterance inside a spoken session, already transcribed
+         *     client-side. `probed` tells the mentor it has used its one follow-up on
+         *     this step.
+         */
+        SessionTurnIn: {
+            /** Step */
+            step: string;
+            /** Text */
+            text: string;
+            /**
+             * Probed
+             * @default false
+             */
+            probed: boolean;
         };
         /** TierUpdate */
         TierUpdate: {
@@ -1503,6 +1663,30 @@ export interface components {
             label: string;
             /** Passage Count */
             passage_count: number;
+        };
+        /** TraditionChoice */
+        TraditionChoice: {
+            /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
+        };
+        /** TraditionOut */
+        TraditionOut: {
+            /**
+             * Slug
+             * @enum {string}
+             */
+            slug: "stoicism" | "transcendentalism";
+            /** Name */
+            name: string;
+            /** Brand */
+            brand: string;
+            /** Tagline */
+            tagline: string;
+            /** Available */
+            available: boolean;
         };
         /** TranscriptOut */
         TranscriptOut: {
@@ -1592,6 +1776,11 @@ export interface components {
              * @default false
              */
             is_verified: boolean;
+            /**
+             * Tradition
+             * @enum {string}
+             */
+            tradition: "stoicism" | "transcendentalism";
         };
         /** ValidationError */
         ValidationError: {
@@ -2182,7 +2371,9 @@ export interface operations {
     };
     today_api_daily_get: {
         parameters: {
-            query?: never;
+            query?: {
+                tradition?: "stoicism" | "transcendentalism";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2196,6 +2387,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2414,7 +2614,9 @@ export interface operations {
     };
     list_works_api_works_get: {
         parameters: {
-            query?: never;
+            query?: {
+                tradition?: ("stoicism" | "transcendentalism") | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2428,6 +2630,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2566,6 +2777,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_turn_api_practice_sessions__session_id__turn_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionTurnIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    step_audio_api_practice_guides__guide_key__steps__step_key__audio_get: {
+        parameters: {
+            query?: {
+                voice?: string;
+            };
+            header?: never;
+            path: {
+                guide_key: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2954,6 +3234,59 @@ export interface operations {
             };
         };
     };
+    list_traditions_api_traditions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraditionOut"][];
+                };
+            };
+        };
+    };
+    choose_tradition_api_traditions_mine_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TraditionChoice"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_api_chat_post: {
         parameters: {
             query?: never;
@@ -3114,6 +3447,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    narrate_api_chat_narrate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarrateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

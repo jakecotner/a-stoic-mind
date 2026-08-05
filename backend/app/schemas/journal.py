@@ -5,6 +5,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.tradition import Tradition
+
 
 class JournalEntryCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
@@ -22,6 +24,8 @@ class JournalEntryOut(BaseModel):
     id: uuid.UUID
     passage_id: uuid.UUID | None
     date: date
+    # The tradition the entry was written under — the reflection's voice.
+    tradition: Tradition
     content: str
     # The LLM's response to the entry. Null until generated (or when
     # generation was unavailable) — the entry always stands on its own.

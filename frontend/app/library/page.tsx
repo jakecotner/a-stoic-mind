@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorks } from "@/lib/corpus-server";
 import { workSlug } from "@/lib/library";
+import { traditionMeta } from "@/lib/tradition";
+import { getViewingTradition } from "@/lib/tradition-server";
 
 // Rendered at request time: the backend is only reachable at runtime (on
 // Railway the private network doesn't exist during builds). Note
@@ -16,17 +18,14 @@ export const metadata: Metadata = {
 };
 
 export default async function LibraryPage() {
-  const works = await getWorks();
+  const tradition = traditionMeta(await getViewingTradition());
+  const works = await getWorks(tradition.slug);
   const authors = [...new Set(works.map((w) => w.author))];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">Library</h1>
-      <p className="mb-8 text-sm opacity-70">
-        The Stoic classics, free to read. Open a work to read
-        it — signed in, you can take margin notes and keep your reading in
-        your practice calendar.
-      </p>
+      <p className="mb-8 text-sm opacity-70">{tradition.libraryBlurb}</p>
       {authors.map((author) => (
         <section key={author} className="mb-8">
           <h2 className="mb-3 text-lg font-medium">{author}</h2>

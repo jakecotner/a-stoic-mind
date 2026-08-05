@@ -6,18 +6,22 @@
 // Prompt steps save real journal entries — the session leaves the same
 // traces on the calendar as practicing piecemeal would.
 import { useEffect, useRef, useState } from "react";
+import BoldMarkdown from "@/components/BoldMarkdown";
 import { PlayButton } from "@/components/PlayButton";
 import {
+  breakdownAudioUrl,
   createJournalEntry,
   endPracticeSession,
   fetchDaily,
   fetchIntention,
   passageAudioUrl,
+  reflectOnEntry,
   startPracticeSession,
   type Daily,
   type Guide,
   type PracticeSession,
 } from "@/lib/api";
+import { type QueueItem } from "@/lib/narration";
 
 const subtleButtonCls =
   "rounded border border-black/15 px-2 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
@@ -30,7 +34,26 @@ function formatElapsed(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function PassageBlock({ daily }: { daily: Daily }) {
+/** The day's passage with its reflection — inside a session the two read as
+    one piece, so the passage's listen button narrates straight through both.
+    Shared with the spoken flow (SpokenSessionFlow). */
+export function PassageBlock({ daily }: { daily: Daily }) {
+  const queue = (): QueueItem[] => {
+    const items: QueueItem[] = [
+      {
+        src: passageAudioUrl(daily.passage.id),
+        passageId: daily.passage.id,
+        kind: "passage",
+      },
+    ];
+    if (daily.breakdown)
+      items.push({
+        src: breakdownAudioUrl(daily.passage.id),
+        passageId: daily.passage.id,
+        kind: "breakdown",
+      });
+    return items;
+  };
   return (
     <div>
       <p className="flex items-center gap-2 text-sm font-medium">
@@ -38,11 +61,24 @@ function PassageBlock({ daily }: { daily: Daily }) {
         <PlayButton
           src={passageAudioUrl(daily.passage.id)}
           title={`Listen to ${daily.passage.reference}`}
+          queueFrom={queue}
         />
       </p>
       <blockquote className="mt-2 whitespace-pre-line text-sm leading-relaxed opacity-90">
         {daily.passage.text}
       </blockquote>
+      {daily.breakdown && (
+        <div className="mt-4 border-l-2 border-black/15 pl-3 dark:border-white/25">
+          <p className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-wide opacity-50">
+            Reflection
+            <PlayButton
+              src={breakdownAudioUrl(daily.passage.id)}
+              title="Listen to the reflection"
+            />
+          </p>
+          <BoldMarkdown text={daily.breakdown} />
+        </div>
+      )}
     </div>
   );
 }
@@ -97,14 +133,22 @@ export default function PracticeSessionFlow({
     setStepIdx((i) => i + 1);
   };
 
+  // Entries saved in a session get the same automatic reflection the pad
+  // gives — generated in the background, read later on the day's review.
+  // Best-effort: out of free turns (or any failure) just means no reflection.
+  const reflectQuietly = (entryId: string) => {
+    void reflectOnEntry(entryId).catch(() => {});
+  };
+
   const savePrompt = async () => {
     if (!step || !draft.trim()) return;
     setBusy(true);
     try {
-      await createJournalEntry(
+      const entry = await createJournalEntry(
         `${step.title}\n\n${draft.trim()}`,
         daily?.passage.id ?? null,
       );
+      reflectQuietly(entry.id);
       markAndAdvance(step.key);
     } catch {
       setError("Could not save that entry — it is kept above, try again.");
@@ -117,7 +161,11 @@ export default function PracticeSessionFlow({
     if (!draft.trim()) return;
     setBusy(true);
     try {
-      await createJournalEntry(draft.trim(), daily?.passage.id ?? null);
+      const entry = await createJournalEntry(
+        draft.trim(),
+        daily?.passage.id ?? null,
+      );
+      reflectQuietly(entry.id);
       if (!completedRef.current.includes("journal"))
         completedRef.current.push("journal");
       setDraft("");

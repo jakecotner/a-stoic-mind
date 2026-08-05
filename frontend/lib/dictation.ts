@@ -57,6 +57,10 @@ const ARMED_KEY = "astoicmind:voice-notes";
 const PREROLL_SEC = 1.2; // kept from before speech onset
 const ONSET_SEC = 0.25; // sustained speech to trigger
 const SILENCE_SEC = 1.9; // sustained quiet to finish a take
+// Live conversation is turn-taking, not note-taking: a shorter pause ends
+// the utterance so the mentor can answer sooner. Voice notes keep the long
+// window — mid-thought pauses while reading are normal there.
+const LIVE_SILENCE_SEC = 1.2;
 const MIN_SPEECH_SEC = 0.7; // shorter takes are discarded as false triggers
 const MAX_TAKE_SEC = 120;
 const UPLOAD_RATE = 16_000; // whisper-grade mono
@@ -305,7 +309,7 @@ function onAudio(e: AudioProcessingEvent) {
   takeSamples += copy.length;
   if (rms < release) {
     belowSec += frameSec;
-    if (belowSec >= SILENCE_SEC) finishTake();
+    if (belowSec >= (liveHandler ? LIVE_SILENCE_SEC : SILENCE_SEC)) finishTake();
   } else {
     belowSec = 0;
   }

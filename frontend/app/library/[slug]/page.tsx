@@ -13,7 +13,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!work) return {};
   return {
     title: `${work.work} — ${work.author} | A Stoic Mind`,
-    description: `Read ${work.work} by ${work.author}, translated by ${work.translator} — free to read online.`,
+    description: work.translator
+      ? `Read ${work.work} by ${work.author}, translated by ${work.translator} — free to read online.`
+      : `Read ${work.work} by ${work.author} — free to read online.`,
   };
 }
 
@@ -34,7 +36,9 @@ export default async function WorkPage({ params }: Params) {
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <p className="text-sm opacity-60">{work.author}</p>
       <h1 className="mb-1 text-2xl font-semibold tracking-tight">{work.work}</h1>
-      <p className="mb-8 text-sm opacity-60">translated by {work.translator}</p>
+      <p className="mb-8 text-sm opacity-60">
+        {work.translator ? `translated by ${work.translator}` : " "}
+      </p>
       <ul className="grid gap-2 sm:grid-cols-2">
         {toc.map((entry) => (
           <li key={entry.part}>

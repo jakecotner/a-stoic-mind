@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getWorks } from "@/lib/corpus-server";
 import { workSlug } from "@/lib/library";
 import { STOICS } from "@/lib/stoics";
+import { TRANSCENDENTALISTS } from "@/lib/transcendentalists";
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -26,6 +27,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/stoics`, changeFrequency: "monthly", priority: 0.8 },
     ...STOICS.map((s) => ({
       url: `${BASE}/stoics/${s.slug}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+    {
+      url: `${BASE}/transcendentalists`,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...TRANSCENDENTALISTS.map((t) => ({
+      url: `${BASE}/transcendentalists/${t.slug}`,
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),

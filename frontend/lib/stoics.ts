@@ -13,6 +13,11 @@ export type Era = {
   title: string;
   span: string;
   blurb: string;
+  /**
+   * Contemporary history — what was happening in the wider world during
+   * this era. Rendered as an expandable block under the era's blurb.
+   */
+  history: string[];
 };
 
 export const ERAS: Era[] = [
@@ -22,6 +27,10 @@ export const ERAS: Era[] = [
     span: "c. 300–150 BC",
     blurb:
       "Stoicism began on a painted porch — the Stoa Poikile — in the Athenian marketplace. The first three heads of the school built the whole system: its logic, its physics, its ethics. Their books are lost; their ideas survived everything.",
+    history: [
+      "Zeno arrived in Athens a generation after Alexander the Great died. The world the conqueror left behind was carved up by his generals into rival kingdoms — Macedon, Egypt, Syria — that fought one another for a century. Athens itself was no longer free: garrisons came and went, democracy was suspended and restored at a king's pleasure, and a citizen's fate could turn on a battle fought a thousand miles away.",
+      "It was an anxious, cosmopolitan age, and it produced philosophies to match. Epicurus opened his Garden in Athens within a few years of Zeno's Stoa; both schools promised what politics no longer could — a good life that doesn't depend on fortune. Meanwhile the new Library of Alexandria was gathering up Greek learning, and far to the west a rising Italian city, Rome, was fighting Carthage for control of the Mediterranean.",
+    ],
   },
   {
     key: "middle",
@@ -29,6 +38,10 @@ export const ERAS: Era[] = [
     span: "c. 150–50 BC",
     blurb:
       "The school crossed the sea. Two Greeks from the eastern Aegean carried Stoicism into the Roman world and reshaped it for people with careers, families, and public duties — philosophy for the imperfect, not just the ideal sage.",
+    history: [
+      "In 146 BC Rome destroyed Carthage and Corinth in the same year, and the Greek world became Roman provinces almost overnight. Greek learning followed the power: when Athens sent three philosophers to Rome as ambassadors in 155 BC, their lectures caused a sensation — and made philosophy fashionable among the Roman elite.",
+      "Panaetius joined the circle of Scipio Aemilianus, the general who burned Carthage; Posidonius taught on Rhodes, where Cicero and Pompey sailed to hear him. Rome itself, though, was coming apart even as it conquered — land crises, the murdered Gracchi brothers, the first civil wars between Marius and Sulla. Stoicism was being remade for people navigating exactly that world: ambition, duty, and politics that could kill you.",
+    ],
   },
   {
     key: "roman",
@@ -36,6 +49,10 @@ export const ERAS: Era[] = [
     span: "c. 50 BC – AD 180",
     blurb:
       "A senator, a statesman, an exiled teacher, a former slave, an emperor. Every complete Stoic work that survives was written in this period — this is the Stoicism you can read in the Library.",
+    history: [
+      "This is the age when the Roman Republic died and the Empire took its place. Caesar crossed the Rubicon in 49 BC; Cato chose death at Utica rather than accept his pardon, becoming the Stoic martyr of the lost Republic; Augustus emerged from the wreckage as the first emperor.",
+      "The Pax Romana that followed made the Mediterranean one world — roads, trade, a common law over some sixty million people — but under autocracy, philosophy became dangerous. Nero forced Seneca, his own tutor, to suicide. Domitian banished the philosophers from Rome, which is how Epictetus came to teach in a small Greek town. And Marcus Aurelius wrote the Meditations not in a study but in an army camp on the Danube frontier, while the Antonine plague — carried home by his own legions — swept through the empire.",
+    ],
   },
 ];
 

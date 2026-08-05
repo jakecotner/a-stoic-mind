@@ -23,13 +23,18 @@ def list_for_user(db: Session, user_id: uuid.UUID) -> list[Conversation]:
 
 
 def create(
-    db: Session, title: str, user_id: uuid.UUID | None, share_journal: bool = False
+    db: Session,
+    title: str,
+    user_id: uuid.UUID | None,
+    share_journal: bool = False,
+    tradition: str = "stoicism",
 ) -> Conversation:
     conversation = Conversation(
         title=title,
         user_id=user_id,
         # Journal sharing needs a journal: anonymous conversations stay off.
         share_journal=share_journal if user_id is not None else False,
+        tradition=tradition,
     )
     db.add(conversation)
     db.commit()

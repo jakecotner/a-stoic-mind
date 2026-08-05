@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.crud import passage as passage_crud
 from app.schemas.passage import BreakdownOut, PassageOut, WorkOut
+from app.schemas.tradition import Tradition
 from app.services import reading as reading_service
 from app.services.breakdown import breakdown_for
 
@@ -16,8 +17,15 @@ router = APIRouter(prefix="/api", tags=["corpus"])
 
 
 @router.get("/works", response_model=list[WorkOut])
-def list_works(db: Session = Depends(get_db)):
-    return [WorkOut.model_validate(row, from_attributes=True) for row in passage_crud.list_works(db)]
+def list_works(
+    tradition: Tradition | None = None, db: Session = Depends(get_db)
+):
+    """The library listing; `tradition` narrows to one tradition's works.
+    Reading is open — unfiltered returns the whole corpus."""
+    return [
+        WorkOut.model_validate(row, from_attributes=True)
+        for row in passage_crud.list_works(db, tradition)
+    ]
 
 
 @router.get("/passages", response_model=list[PassageOut])

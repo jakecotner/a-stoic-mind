@@ -63,7 +63,12 @@ def main() -> None:
     missing: list[str] = []
     with SessionLocal() as db:
         if reset:
-            db.execute(update(Passage).values(curated=false()))
+            # Scoped to this tradition — other traditions curate separately.
+            db.execute(
+                update(Passage)
+                .where(Passage.tradition == "stoicism")
+                .values(curated=false())
+            )
         for entry in CURATED:
             passage = db.scalar(
                 select(Passage).where(Passage.reference == entry)

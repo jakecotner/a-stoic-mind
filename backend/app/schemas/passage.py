@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.tradition import Tradition
+
 
 class WorkOut(BaseModel):
     """One work in the library, aggregated from its passages."""
@@ -20,6 +22,7 @@ class PassageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    tradition: Tradition
     author: str
     work: str
     reference: str

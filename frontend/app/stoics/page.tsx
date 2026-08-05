@@ -26,7 +26,23 @@ export default function StoicsPage() {
               <h2 className="text-lg font-medium">{era.title}</h2>
               <span className="text-xs opacity-60">{era.span}</span>
             </div>
-            <p className="mb-4 max-w-2xl text-sm opacity-70">{era.blurb}</p>
+            <p className="mb-2 max-w-2xl text-sm opacity-70">{era.blurb}</p>
+            <details className="group mb-4 max-w-2xl">
+              <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 text-xs font-medium opacity-60 transition-opacity hover:opacity-100 [&::-webkit-details-marker]:hidden">
+                <span
+                  aria-hidden
+                  className="inline-block transition-transform group-open:rotate-90"
+                >
+                  ▸
+                </span>
+                Contemporary history
+              </summary>
+              <div className="mt-2 space-y-2 border-l-2 border-black/10 pl-3 text-sm opacity-70 dark:border-white/15">
+                {era.history.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+            </details>
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {members.map((s) => (
                 <li key={s.slug}>
@@ -36,7 +52,7 @@ export default function StoicsPage() {
                   >
                     <div className="relative mb-3 aspect-[4/5] overflow-hidden rounded-md bg-black/5 dark:bg-white/10">
                       <StoicPortrait
-                        stoic={s}
+                        subject={s}
                         sizes="(max-width: 640px) 50vw, 260px"
                       />
                     </div>

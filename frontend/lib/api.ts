@@ -163,10 +163,43 @@ export async function verifyEmail(token: string): Promise<void> {
 
 export type Daily = Schema<"DailyOut">;
 
-export async function fetchDaily(): Promise<Daily> {
-  const resp = await fetch("/api/daily");
+export async function fetchDaily(tradition?: string): Promise<Daily> {
+  const arg = tradition ? `?tradition=${encodeURIComponent(tradition)}` : "";
+  const resp = await fetch(`/api/daily${arg}`);
   if (!resp.ok)
     throw new Error(`Could not load today's passage (${resp.status})`);
+  return resp.json();
+}
+
+// --- Traditions (mirrors backend app/routes/tradition.py)
+
+export type TraditionInfo = Schema<"TraditionOut">;
+
+export async function fetchTraditions(): Promise<TraditionInfo[]> {
+  const resp = await fetch("/api/traditions");
+  if (!resp.ok) throw new Error(`Could not load traditions (${resp.status})`);
+  return resp.json();
+}
+
+/** Changing the home tradition again after the free first pick needs Plus. */
+export class TraditionPlusError extends Error {
+  constructor() {
+    super("Changing your tradition again is part of Plus.");
+  }
+}
+
+/** Set the signed-in user's home tradition — the voice their reflections,
+    mentor, and practice follow. Free users get one explicit choice; a 402
+    surfaces as TraditionPlusError (the upsell moment, not a failure). */
+export async function chooseTradition(tradition: string): Promise<AuthUser> {
+  const resp = await fetch("/api/traditions/mine", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tradition }),
+  });
+  if (resp.status === 402) throw new TraditionPlusError();
+  if (!resp.ok)
+    throw new Error(`Could not switch tradition (${resp.status})`);
   return resp.json();
 }
 
@@ -491,17 +524,78 @@ export async function fetchGuides(): Promise<Guide[]> {
   }
 }
 
+/** Spoken sessions (spoken=true) are a Plus feature — a 402 throws
+    PlusRequiredError so the launcher can show the upgrade nudge. */
 export async function startPracticeSession(
   guide: Guide["key"] | null,
+  spoken = false,
 ): Promise<PracticeSession> {
   const resp = await fetch("/api/practice/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ guide }),
+    body: JSON.stringify({ guide, spoken }),
   });
+  if (resp.status === 402) throw new PlusRequiredError();
   if (!resp.ok)
     throw new Error(`Could not start the session (${resp.status})`);
   return resp.json();
+}
+
+/** Spoken sessions are gated to Plus (HTTP 402, code "plus_required"). */
+export class PlusRequiredError extends Error {
+  constructor() {
+    super("Spoken sessions are a Plus feature");
+  }
+}
+
+/** The mentor speaking a guide step's prompt (spoken sessions; voice applied
+    by the narration engine at play time). */
+export const practiceStepAudioUrl = (guide: string, step: string): string =>
+  `/api/practice/guides/${guide}/steps/${step}/audio`;
+
+/** POST one spoken utterance to a spoken session and consume the SSE reply —
+    the same stream contract as the mentor chat. */
+export async function streamPracticeTurn(
+  sessionId: string,
+  turn: { step: string; text: string; probed: boolean },
+  handlers: {
+    onDelta: (text: string) => void;
+    onError: (message: string) => void;
+    onDone: (info: { message_id?: string }) => void;
+  },
+): Promise<void> {
+  let resp: Response;
+  try {
+    resp = await fetch(`/api/practice/sessions/${sessionId}/turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(turn),
+    });
+  } catch {
+    handlers.onError("Could not reach the server — try again in a moment.");
+    handlers.onDone({});
+    return;
+  }
+  if (resp.status === 402) {
+    handlers.onError("Spoken sessions are a Plus feature.");
+    handlers.onDone({});
+    return;
+  }
+  if (resp.status === 403) {
+    handlers.onError("Verify your email address to continue.");
+    handlers.onDone({});
+    return;
+  }
+  if (!resp.ok || !resp.body) {
+    handlers.onError(`Request failed (${resp.status})`);
+    handlers.onDone({});
+    return;
+  }
+  await consumeSse(resp, {
+    delta: handlers.onDelta,
+    error: handlers.onError,
+    done: handlers.onDone,
+  });
 }
 
 export async function endPracticeSession(
@@ -667,6 +761,19 @@ export async function streamChat(
     voice applied by the narration engine at play time). */
 export const messageAudioUrl = (messageId: string): string =>
   `/api/messages/${messageId}/audio`;
+
+/** Speak one sentence of a reply that's still streaming (live mode's
+    sentence-by-sentence pipeline). Returns the audio clip; the caller turns
+    it into an object URL for the narration queue. */
+export async function narrateSnippet(text: string, voice: string): Promise<Blob> {
+  const resp = await fetch("/api/chat/narrate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, voice }),
+  });
+  if (!resp.ok) throw new Error(`Narration failed (${resp.status})`);
+  return resp.blob();
+}
 
 export async function fetchConversations(): Promise<ConversationSummary[]> {
   const resp = await fetch("/api/conversations");

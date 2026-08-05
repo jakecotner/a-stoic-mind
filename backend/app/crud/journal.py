@@ -14,9 +14,14 @@ def create(
     content: str,
     passage_id: uuid.UUID | None,
     entry_date: date,
+    tradition: str,
 ) -> JournalEntry:
     entry = JournalEntry(
-        user_id=user_id, content=content, passage_id=passage_id, date=entry_date
+        user_id=user_id,
+        content=content,
+        passage_id=passage_id,
+        date=entry_date,
+        tradition=tradition,
     )
     db.add(entry)
     db.commit()

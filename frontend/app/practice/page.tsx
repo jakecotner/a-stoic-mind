@@ -9,7 +9,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import BoldMarkdown from "@/components/BoldMarkdown";
 import PracticeSessionFlow from "@/components/PracticeSessionFlow";
+import SpokenSessionFlow from "@/components/SpokenSessionFlow";
 import {
+  fetchBillingSummary,
   fetchCalendar,
   fetchDayDetail,
   fetchGuides,
@@ -20,7 +22,13 @@ import {
   type Guide,
   type Intention,
 } from "@/lib/api";
+import { primeAudio } from "@/lib/narration";
 import { useUser } from "@/lib/useUser";
+
+// The written/spoken choice lives on the launcher (point of use) and the
+// last choice sticks, like the narration voice and pace prefs.
+const MODE_KEY = "astoicmind:practice-mode";
+type SessionMode = "written" | "spoken";
 
 const MONTHS = [
   "January",
@@ -293,12 +301,38 @@ export default function PracticePage() {
   const [detail, setDetail] = useState<DayDetail | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   // null = no session running; { guide: null } = a freeform session.
-  const [session, setSession] = useState<{ guide: Guide | null } | null>(null);
+  const [session, setSession] = useState<{
+    guide: Guide | null;
+    spoken: boolean;
+  } | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [mode, setMode] = useState<SessionMode>("written");
+  // Plus status, for the launcher hint only — the backend is the real gate.
+  // null = unknown (billing unreachable): no hint, the gate still answers.
+  const [plus, setPlus] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetchGuides().then(setGuides);
+    // Read after mount — localStorage isn't there for the server render.
+    if (localStorage.getItem(MODE_KEY) === "spoken") setMode("spoken");
   }, []);
+
+  const chooseMode = (m: SessionMode) => {
+    setMode(m);
+    if (m === "spoken") localStorage.setItem(MODE_KEY, "spoken");
+    else localStorage.removeItem(MODE_KEY);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.is_superuser) {
+      setPlus(true);
+      return;
+    }
+    fetchBillingSummary()
+      .then((b) => setPlus(b ? b.tier === "plus" : null))
+      .catch(() => setPlus(null));
+  }, [user]);
 
   // Signed out, the calendar is still worth seeing: an empty month, ready
   // to be filled — built locally, since the practice API needs an account.
@@ -344,14 +378,14 @@ export default function PracticePage() {
 
   // A running session takes over the page — one thing at a time.
   if (session) {
-    return (
-      <PracticeSessionFlow
-        guide={session.guide}
-        onDone={() => {
-          setSession(null);
-          setRefresh((n) => n + 1);
-        }}
-      />
+    const done = () => {
+      setSession(null);
+      setRefresh((n) => n + 1);
+    };
+    return session.spoken && session.guide ? (
+      <SpokenSessionFlow guide={session.guide} onDone={done} />
+    ) : (
+      <PracticeSessionFlow guide={session.guide} onDone={done} />
     );
   }
 
@@ -391,7 +425,38 @@ export default function PracticePage() {
             own music alongside (Spotify or anything else) works fine — the
             session doesn't touch it. */}
         <section className="rounded-xl border border-black/10 p-4 dark:border-white/15">
-          <p className="mb-3 text-sm font-medium">Begin a session</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">Begin a session</p>
+            {user && (
+              <span
+                className="flex items-center gap-1 text-xs"
+                title="Written: type your responses. Spoken: the mentor guides you by voice and responds to your thinking out loud (Plus)."
+              >
+                {(["written", "spoken"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => chooseMode(m)}
+                    className={`rounded-full border px-2.5 py-0.5 ${
+                      mode === m
+                        ? "border-black/40 font-medium dark:border-white/60"
+                        : "border-black/15 opacity-60 hover:opacity-100 dark:border-white/20"
+                    }`}
+                  >
+                    {m === "written" ? "Written" : "Spoken"}
+                  </button>
+                ))}
+              </span>
+            )}
+          </div>
+          {user && mode === "spoken" && plus === false && (
+            <p className="mb-3 text-xs opacity-70">
+              Spoken sessions are a Plus feature —{" "}
+              <Link href="/account" className="underline">
+                upgrade
+              </Link>{" "}
+              to have the mentor guide your sitting by voice.
+            </p>
+          )}
           {user ? (
             <div className="flex flex-wrap gap-2">
               {guides.map((g) => (
@@ -399,14 +464,20 @@ export default function PracticePage() {
                   key={g.key}
                   title={g.tagline}
                   className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-medium text-background hover:opacity-85"
-                  onClick={() => setSession({ guide: g })}
+                  onClick={() => {
+                    // The click is the user gesture that blesses the audio
+                    // element for the spoken flow's programmatic playback.
+                    if (mode === "spoken") primeAudio();
+                    setSession({ guide: g, spoken: mode === "spoken" });
+                  }}
                 >
                   {g.title}
                 </button>
               ))}
               <button
                 className={subtleButtonCls}
-                onClick={() => setSession({ guide: null })}
+                title="An unguided sit — written, whatever the mode"
+                onClick={() => setSession({ guide: null, spoken: false })}
               >
                 Just practice
               </button>

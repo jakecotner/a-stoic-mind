@@ -38,9 +38,15 @@ def upsert_intention(
 
 
 def create_session(
-    db: Session, user_id: uuid.UUID, on: date, guide: str | None
+    db: Session,
+    user_id: uuid.UUID,
+    on: date,
+    guide: str | None,
+    conversation_id: uuid.UUID | None = None,
 ) -> PracticeSession:
-    row = PracticeSession(user_id=user_id, date=on, guide=guide)
+    row = PracticeSession(
+        user_id=user_id, date=on, guide=guide, conversation_id=conversation_id
+    )
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -93,12 +99,18 @@ def sessions_on(db: Session, user_id: uuid.UUID, on: date) -> list[PracticeSessi
     )
 
 
-def daily_references(db: Session, start: date, end: date) -> dict[date, str]:
+def daily_references(
+    db: Session, start: date, end: date, tradition: str
+) -> dict[date, str]:
     """date -> daily passage reference, for [start, end)."""
     rows = db.execute(
         select(DailyPassage.date, Passage.reference)
         .join(Passage, Passage.id == DailyPassage.passage_id)
-        .where(DailyPassage.date >= start, DailyPassage.date < end)
+        .where(
+            DailyPassage.date >= start,
+            DailyPassage.date < end,
+            DailyPassage.tradition == tradition,
+        )
     )
     return {d: ref for d, ref in rows}
 

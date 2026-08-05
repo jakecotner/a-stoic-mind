@@ -24,16 +24,22 @@ import {
 import {
   fetchConversation,
   messageAudioUrl,
+  narrateSnippet,
   streamChat,
   updateConversation,
   type CapInfo,
 } from "@/lib/api";
 import { CONVERSATIONS_CHANGED_EVENT } from "@/components/Sidebar";
 import {
+  appendLiveClip,
+  finishLiveReply,
   getNarrationSnapshot,
   getServerNarrationSnapshot,
+  getVoicePref,
   primeAudio,
+  startLiveReply,
   startNarration,
+  stopIfOwner,
   stopNarration,
   subscribeNarration,
 } from "@/lib/narration";
@@ -59,6 +65,99 @@ function speak(messageId: string) {
   ]);
 }
 
+// --- Live-mode reply narration: speak the reply sentence-by-sentence WHILE
+// it streams, instead of waiting for the full text and one big synthesis.
+// Text deltas are cut at sentence boundaries; each cut is synthesized the
+// moment it's complete and appended to an open-ended narration run, so the
+// mentor's first sentence is audible while the rest is still being written.
+
+// A sentence end (., !, ?, optionally inside quotes/brackets) followed by
+// whitespace — or a line break (paragraphs, list items). Numbers like "2.5"
+// don't match (no space after the dot).
+const SENTENCE_BOUNDARY = /[.!?]["'")\]]*\s+|\n+/g;
+// After the first clip is on its way, batch sentences up to roughly this
+// size — fewer, smoother clips once latency no longer depends on them.
+const BATCH_CHARS = 160;
+// The server refuses snippets over 1500 chars; split well before that.
+const HARD_SPLIT = 1200;
+
+type ReplyPipeline = {
+  push: (delta: string) => void;
+  finish: () => void;
+  /** Abort the run (error / cap hit) — stops audio if we still own it. */
+  cancel: () => void;
+  /** Free the clip object URLs — only after the run is long over. */
+  dispose: () => void;
+};
+
+function createReplyPipeline(): ReplyPipeline {
+  const token = startLiveReply();
+  const voice = getVoicePref();
+  const urls: string[] = [];
+  // Clips must reach the queue in reply order, but synthesis runs in
+  // parallel: each flush starts its fetch immediately and the chain only
+  // orders the appends.
+  let chain: Promise<void> = Promise.resolve();
+  let buffer = ""; // text since the last cut, no boundary seen yet
+  let pending = ""; // complete sentences held back for batching
+  let sentAny = false;
+
+  const send = (piece: string) => {
+    const text = piece.trim();
+    if (!text) return;
+    sentAny = true;
+    const fetching = narrateSnippet(text, voice);
+    chain = chain.then(async () => {
+      try {
+        const url = URL.createObjectURL(await fetching);
+        urls.push(url);
+        appendLiveClip(token, url, "live-reply");
+      } catch {
+        // Skip this clip; the next keeps the reply going. The text is
+        // still on screen, so nothing is lost.
+      }
+    });
+  };
+
+  const flushPending = () => {
+    while (pending.length > HARD_SPLIT) {
+      send(pending.slice(0, HARD_SPLIT));
+      pending = pending.slice(HARD_SPLIT);
+    }
+    send(pending);
+    pending = "";
+  };
+
+  return {
+    push(delta) {
+      buffer += delta;
+      SENTENCE_BOUNDARY.lastIndex = 0;
+      let cut = 0;
+      for (let m = SENTENCE_BOUNDARY.exec(buffer); m; m = SENTENCE_BOUNDARY.exec(buffer))
+        cut = m.index + m[0].length;
+      if (cut === 0) return;
+      pending += buffer.slice(0, cut);
+      buffer = buffer.slice(cut);
+      // The first sentence goes out the instant it's complete — it alone
+      // decides how soon the mentor is audible. Later ones batch.
+      if (!sentAny || pending.length >= BATCH_CHARS) flushPending();
+    },
+    finish() {
+      pending += buffer;
+      buffer = "";
+      flushPending();
+      void chain.then(() => finishLiveReply(token));
+    },
+    cancel() {
+      stopIfOwner(token);
+    },
+    dispose() {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.length = 0;
+    },
+  };
+}
+
 function Chat() {
   const { user, loading } = useUser();
   const router = useRouter();
@@ -76,6 +175,9 @@ function Chat() {
   const [notice, setNotice] = useState<React.ReactNode>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const liveCleanup = useRef<(() => void) | null>(null);
+  // The previous reply's narration pipeline — kept only so its clip URLs
+  // can be freed once a new reply (or unmount) has retired the run.
+  const lastPipeline = useRef<ReplyPipeline | null>(null);
   // An utterance that arrived while a reply was still streaming — sent as
   // soon as the stream settles.
   const pendingUtterance = useRef<string | null>(null);
@@ -104,6 +206,8 @@ function Chat() {
       liveCleanup.current?.();
       liveCleanup.current = null;
       stopNarration();
+      lastPipeline.current?.dispose();
+      lastPipeline.current = null;
     },
     [],
   );
@@ -194,6 +298,15 @@ function Chat() {
       { role: "user", content: message },
       { role: "assistant", content: "" },
     ]);
+    // In live mode the reply is spoken sentence-by-sentence as it streams.
+    // Starting the pipeline retires any run still playing, so the previous
+    // reply's clips are safe to free now.
+    let pipeline: ReplyPipeline | null = null;
+    if (liveCleanup.current) {
+      pipeline = createReplyPipeline();
+      lastPipeline.current?.dispose();
+      lastPipeline.current = pipeline;
+    }
     const append = (text: string) =>
       setMessages((prev) => {
         const next = [...prev];
@@ -218,15 +331,23 @@ function Chat() {
           }
           // Anonymous taste: the conversation continues in memory only.
         },
-        onDelta: append,
-        onError: (msg) => setNotice(msg),
+        onDelta: (text) => {
+          append(text);
+          pipeline?.push(text);
+        },
+        onError: (msg) => {
+          pipeline?.cancel();
+          setNotice(msg);
+        },
         onCapHit: (info) => {
+          pipeline?.cancel();
           // Drop the empty assistant bubble; the notice carries the nudge.
           setMessages((prev) => prev.slice(0, -1));
           setNotice(capNotice(info));
         },
         onDone: ({ message_id }) => {
           setStreaming(false);
+          pipeline?.finish();
           if (message_id) {
             setMessages((prev) => {
               const next = [...prev];
@@ -235,7 +356,6 @@ function Chat() {
                 next[next.length - 1] = { ...last, id: message_id };
               return next;
             });
-            if (liveCleanup.current) speak(message_id);
           }
           const pending = pendingUtterance.current;
           pendingUtterance.current = null;
