@@ -760,3 +760,20 @@ export async function openBillingPortal(): Promise<void> {
   const { url } = await resp.json();
   window.location.href = url;
 }
+
+// --- Admin console (superuser only — the /admin page)
+
+export type AdminStats = Schema<"AdminStatsOut">;
+export type AdminUserRow = Schema<"AdminUserRow">;
+
+export async function fetchAdminStats(): Promise<AdminStats> {
+  const resp = await fetch("/api/admin/stats");
+  if (!resp.ok) throw new Error(`Could not load stats (${resp.status})`);
+  return resp.json();
+}
+
+export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
+  const resp = await fetch("/api/admin/users");
+  if (!resp.ok) throw new Error(`Could not load users (${resp.status})`);
+  return resp.json();
+}

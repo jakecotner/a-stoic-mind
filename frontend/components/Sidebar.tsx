@@ -110,6 +110,16 @@ function HelpIcon() {
   );
 }
 
+function GaugeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <path d="M12 20a8 8 0 1 1 8-8" />
+      <path d="M12 12l5-3" />
+      <path d="M20 16v4h-4" />
+    </svg>
+  );
+}
+
 function CaretIcon({ open }: { open: boolean }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
@@ -343,6 +353,15 @@ export default function Sidebar() {
           collapsed={collapsed}
           tour="account"
         />
+        {user?.is_superuser && (
+          <NavLink
+            href="/admin"
+            label="Admin"
+            icon={<GaugeIcon />}
+            active={pathname === "/admin"}
+            collapsed={collapsed}
+          />
+        )}
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-black/10 px-2 py-3 dark:border-white/15">

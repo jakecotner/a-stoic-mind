@@ -7,10 +7,31 @@ from sqlalchemy.orm import Session
 from app.core.auth import current_superuser
 from app.core.db import get_db
 from app.models import User
-from app.schemas.admin import TierUpdate, UsageSummaryRow
+from app.schemas.admin import (
+    AdminStatsOut,
+    AdminUserRow,
+    TierUpdate,
+    UsageSummaryRow,
+)
 from app.services import admin as admin_service
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/stats", response_model=AdminStatsOut)
+def stats(
+    db: Session = Depends(get_db),
+    _: User = Depends(current_superuser),
+) -> AdminStatsOut:
+    return admin_service.stats(db)
+
+
+@router.get("/users", response_model=list[AdminUserRow])
+def user_list(
+    db: Session = Depends(get_db),
+    _: User = Depends(current_superuser),
+) -> list[AdminUserRow]:
+    return admin_service.user_list(db)
 
 
 @router.post("/users/{user_id}/tier")

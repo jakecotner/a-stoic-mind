@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       // Practice and Account now render public shells; only chat threads,
       // the token flows, and the API stay out of the index.
-      disallow: ["/chat", "/verify", "/reset-password", "/api/"],
+      disallow: ["/chat", "/verify", "/reset-password", "/admin", "/api/"],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };
