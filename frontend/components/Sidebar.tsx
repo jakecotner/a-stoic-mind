@@ -15,6 +15,9 @@ import { useUser } from "@/lib/useUser";
 const COLLAPSED_KEY = "sidebar-collapsed";
 const HISTORY_OPEN_KEY = "mentor-history-open";
 
+const menuItemCls =
+  "flex w-full items-center gap-3 px-3 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10";
+
 /** Fired (on window) whenever a conversation is created or removed, so the
     sidebar's history list refetches. The chat page dispatches it when a
     first message creates a conversation. */
@@ -106,6 +109,24 @@ function HelpIcon() {
       <circle cx="12" cy="12" r="10" />
       <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
       <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
+function CardIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M22 7l-10 6L2 7" />
     </svg>
   );
 }
@@ -232,16 +253,16 @@ export default function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const helpRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!helpOpen) return;
+    if (!menuOpen) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (!helpRef.current?.contains(e.target as Node)) setHelpOpen(false);
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setHelpOpen(false);
+      if (e.key === "Escape") setMenuOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -249,7 +270,7 @@ export default function Sidebar() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [helpOpen]);
+  }, [menuOpen]);
 
   useEffect(() => {
     const stored = localStorage.getItem(COLLAPSED_KEY);
@@ -363,72 +384,76 @@ export default function Sidebar() {
             </Suspense>
           )}
         </div>
-        <NavLink
-          href="/account"
-          label="Account"
-          icon={<UserIcon />}
-          active={pathname === "/account"}
-          collapsed={collapsed}
-          tour="account"
-        />
-        {user?.is_superuser && (
-          <NavLink
-            href="/admin"
-            label="Admin"
-            icon={<GaugeIcon />}
-            active={pathname === "/admin"}
-            collapsed={collapsed}
-          />
-        )}
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-black/10 px-2 py-3 dark:border-white/15">
-        <div ref={helpRef} className={`relative flex ${collapsed ? "justify-center" : ""}`}>
-          <button
-            title="Help"
-            aria-label="Help"
-            aria-expanded={helpOpen}
-            className="rounded p-2 opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
-            onClick={() => setHelpOpen((o) => !o)}
-          >
-            <HelpIcon />
-          </button>
-          {helpOpen && (
-            <div className="absolute bottom-full left-0 z-10 mb-1 w-44 rounded-lg border border-black/10 bg-background py-1 shadow-lg dark:border-white/15">
-              <button
-                className="flex w-full items-center gap-3 px-3 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
-                onClick={() => {
-                  setHelpOpen(false);
-                  window.dispatchEvent(new Event(TOUR_OPEN_EVENT));
-                }}
-              >
-                Take the tour
-              </button>
-            </div>
-          )}
-        </div>
         {loading ? null : user ? (
-          <>
-            {!collapsed && (
-              <span className="truncate px-2.5 pb-1 text-xs opacity-70" title={user.email}>
-                {user.email}
-              </span>
-            )}
+          <div ref={menuRef} className="relative">
             <button
-              title={collapsed ? "Sign out" : undefined}
-              className={`flex items-center gap-3 rounded px-2.5 py-2 text-sm opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="Account menu"
+              aria-expanded={menuOpen}
+              title={collapsed ? user.email : undefined}
+              className={`flex w-full items-center gap-3 rounded px-2.5 py-2 opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
                 collapsed ? "justify-center" : ""
               }`}
-              onClick={async () => {
-                await logout();
-                await refresh();
-                router.push("/");
-              }}
             >
-              <SignOutIcon />
-              {!collapsed && <span>Sign out</span>}
+              <UserIcon />
+              {!collapsed && (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-left text-xs" title={user.email}>
+                    {user.email}
+                  </span>
+                  <CaretIcon open={!menuOpen} />
+                </>
+              )}
             </button>
-          </>
+            {menuOpen && (
+              <div className="absolute bottom-full left-0 z-10 mb-1 w-52 rounded-lg border border-black/10 bg-background py-1 shadow-lg dark:border-white/15">
+                <Link href="/account" className={menuItemCls} onClick={() => setMenuOpen(false)}>
+                  <UserIcon />
+                  Account
+                </Link>
+                <Link href="/account#billing" className={menuItemCls} onClick={() => setMenuOpen(false)}>
+                  <CardIcon />
+                  Billing
+                </Link>
+                {user.is_superuser && (
+                  <Link href="/admin" className={menuItemCls} onClick={() => setMenuOpen(false)}>
+                    <GaugeIcon />
+                    Admin
+                  </Link>
+                )}
+                <button
+                  className={menuItemCls}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    window.dispatchEvent(new Event(TOUR_OPEN_EVENT));
+                  }}
+                >
+                  <HelpIcon />
+                  Take the tour
+                </button>
+                <Link href="/contact" className={menuItemCls} onClick={() => setMenuOpen(false)}>
+                  <MailIcon />
+                  Send feedback
+                </Link>
+                <div className="my-1 border-t border-black/10 dark:border-white/15" />
+                <button
+                  className={menuItemCls}
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    await logout();
+                    await refresh();
+                    router.push("/");
+                  }}
+                >
+                  <SignOutIcon />
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           <>
             <NavLink

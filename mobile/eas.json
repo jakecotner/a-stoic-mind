@@ -11,15 +11,15 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-with-backend-origin",
-        "EXPO_PUBLIC_WEB_URL": "https://REPLACE-with-website-origin"
+        "EXPO_PUBLIC_API_URL": "https://a-stoic-mind-production.up.railway.app",
+        "EXPO_PUBLIC_WEB_URL": "https://www.astoicmind.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-with-backend-origin",
-        "EXPO_PUBLIC_WEB_URL": "https://REPLACE-with-website-origin"
+        "EXPO_PUBLIC_API_URL": "https://a-stoic-mind-production.up.railway.app",
+        "EXPO_PUBLIC_WEB_URL": "https://www.astoicmind.com"
       }
     }
   },

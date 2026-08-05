@@ -147,7 +147,7 @@ export default function AccountPage() {
         <p className="text-sm opacity-70">{user.email}</p>
       </section>
 
-      <section className="rounded-xl border border-black/10 p-5 dark:border-white/15">
+      <section id="billing" className="scroll-mt-6 rounded-xl border border-black/10 p-5 dark:border-white/15">
         <h2 className="mb-3 font-medium">Plan</h2>
         {billing === null ? (
           <p className="text-sm opacity-60">Loading…</p>
