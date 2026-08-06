@@ -156,6 +156,11 @@ export const subscribeNarration = (l: () => void): (() => void) => {
 export const getNarrationSnapshot = (): NarrationSnapshot => snapshot;
 export const getServerNarrationSnapshot = (): NarrationSnapshot => IDLE;
 
+/** Seconds into the item currently playing (0 when idle). Read-along
+    surfaces poll this each animation frame rather than subscribing — word
+    boundaries are far denser than snapshot events. */
+export const getNarrationTime = (): number => audio?.currentTime ?? 0;
+
 // Debug peephole (harmless in prod; used by browser drives).
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__narrDebug = () => ({

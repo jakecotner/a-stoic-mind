@@ -8,8 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import BoldMarkdown from "@/components/BoldMarkdown";
-import PracticeSessionFlow from "@/components/PracticeSessionFlow";
-import SpokenSessionFlow from "@/components/SpokenSessionFlow";
+import SessionCanvas from "@/components/SessionCanvas";
 import {
   fetchBillingSummary,
   fetchCalendar,
@@ -376,16 +375,17 @@ export default function PracticePage() {
 
   if (loading) return null;
 
-  // A running session takes over the page — one thing at a time.
+  // A running session takes over the whole screen — one thing at a time.
   if (session) {
-    const done = () => {
-      setSession(null);
-      setRefresh((n) => n + 1);
-    };
-    return session.spoken && session.guide ? (
-      <SpokenSessionFlow guide={session.guide} onDone={done} />
-    ) : (
-      <PracticeSessionFlow guide={session.guide} onDone={done} />
+    return (
+      <SessionCanvas
+        guide={session.guide}
+        mode={session.spoken && session.guide ? "spoken" : "written"}
+        onDone={() => {
+          setSession(null);
+          setRefresh((n) => n + 1);
+        }}
+      />
     );
   }
 
