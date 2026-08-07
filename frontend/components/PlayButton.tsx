@@ -124,10 +124,10 @@ const chipCls =
 // text behind it. In dark mode the page background itself would vanish
 // against the page, so the menu gets a lighter elevated surface.
 const menuCls =
-  "absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-foreground text-[11px] normal-case shadow-lg forced-color-adjust-none dark:border-white/20 dark:bg-neutral-800";
+  "absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-foreground text-xs normal-case shadow-lg forced-color-adjust-none dark:border-white/20 dark:bg-neutral-800";
 const menuItemCls = (current: boolean) =>
-  `px-3 py-1.5 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
-    current ? "font-semibold" : "opacity-70"
+  `px-3.5 py-2 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
+    current ? "font-semibold" : ""
   }`;
 
 /** Icon-only listen/stop toggle for a narration URL. The first listen to a
