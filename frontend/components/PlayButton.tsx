@@ -115,8 +115,16 @@ function StopIcon() {
 
 const chipCls =
   "rounded px-1 text-[11px] normal-case tabular-nums opacity-60 hover:opacity-100";
+// forced-color-adjust-none matters: under a Windows contrast theme,
+// Chromium forces backgrounds to the system palette and then paints
+// text-readability backplates OVER any forced background — so the page text
+// shows through this menu no matter its z-index. Opting out keeps the
+// menu's own (already high-contrast) colors, which paint opaquely.
+// Solid (non-alpha) backgrounds only — the surface must occlude the page
+// text behind it. In dark mode the page background itself would vanish
+// against the page, so the menu gets a lighter elevated surface.
 const menuCls =
-  "absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-[11px] normal-case shadow-lg dark:border-white/15";
+  "absolute right-0 top-full z-20 mt-1 flex flex-col overflow-hidden rounded-lg border border-black/10 bg-background text-foreground text-[11px] normal-case shadow-lg forced-color-adjust-none dark:border-white/20 dark:bg-neutral-800";
 const menuItemCls = (current: boolean) =>
   `px-3 py-1.5 text-left tabular-nums hover:bg-black/5 dark:hover:bg-white/10 ${
     current ? "font-semibold" : "opacity-70"

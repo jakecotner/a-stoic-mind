@@ -94,8 +94,11 @@ export default function TraditionSwitcher() {
         <span className="truncate font-semibold">{viewing.brand}</span>
         <CaretDown />
       </button>
+      {/* forced-color-adjust-none: under Windows contrast themes Chromium
+          paints text backplates over forced backgrounds, so page text
+          would show through this menu (see PlayButton's menuCls). */}
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-60 rounded-lg border border-black/10 bg-background py-1 shadow-lg dark:border-white/15">
+        <div className="absolute left-0 top-full z-20 mt-1 w-60 rounded-lg border border-black/10 bg-background py-1 text-foreground shadow-lg forced-color-adjust-none dark:border-white/20 dark:bg-neutral-800">
           {TRADITIONS.map((t) => (
             <button
               key={t.slug}

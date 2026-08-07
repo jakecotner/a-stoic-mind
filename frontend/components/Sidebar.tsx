@@ -419,8 +419,11 @@ export default function Sidebar() {
                 </>
               )}
             </button>
+            {/* forced-color-adjust-none: under Windows contrast themes
+                Chromium paints text backplates over forced backgrounds, so
+                page text would show through this menu (see PlayButton). */}
             {menuOpen && (
-              <div className="absolute bottom-full left-0 z-10 mb-1 w-52 rounded-lg border border-black/10 bg-background py-1 shadow-lg dark:border-white/15">
+              <div className="absolute bottom-full left-0 z-10 mb-1 w-52 rounded-lg border border-black/10 bg-background py-1 text-foreground shadow-lg forced-color-adjust-none dark:border-white/20 dark:bg-neutral-800">
                 <Link href="/account" className={menuItemCls} onClick={() => setMenuOpen(false)}>
                   <UserIcon />
                   Account
